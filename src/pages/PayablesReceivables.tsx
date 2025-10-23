@@ -111,7 +111,7 @@ const PayablesReceivables: React.FC = () => {
 
   const getClientSupplierName = (id: string) => {
     const clientSupplier = clientSuppliers.find(cs => cs.id === id);
-    return clientSupplier ? clientSupplier.name : 'Não encontrado';
+    return clientSupplier ? clientSupplier.tradeName : 'Não encontrado';
   };
 
   const getStatusIcon = (status: string, dueDate: Date) => {
@@ -514,7 +514,7 @@ const PayableReceivableModal: React.FC<PayableReceivableModalProps> = ({ item, o
                   >
                     <option value="">Selecione um cliente/fornecedor</option>
                     {clientSuppliers.map(cs => (
-                      <option key={cs.id} value={cs.id}>{cs.name}</option>
+                      <option key={cs.id} value={cs.id}>{cs.tradeName}</option>
                     ))}
                   </select>
                 </div>

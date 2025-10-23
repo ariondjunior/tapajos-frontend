@@ -1,7 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2, Building2 } from 'lucide-react';
-import { bankService } from '../services';
+import api from '../services/api';
 import { Bank } from '../types';
+
+type ContaApi = {
+  idConta: number;
+  agencia: string;
+  conta: string;
+  saldo: number;
+  tipoConta: string;
+  statusConta: number; // 1=ativo
+  dvConta: number;
+  fkBanco?: {
+    idBanco: number;
+    nomeBanco: string;
+  };
+};
+
+type PaginatedResponse<T> = {
+  content: T[];
+  totalPages: number;
+  number: number;
+  totalElements: number;
+};
 
 const Banks: React.FC = () => {
   const [banks, setBanks] = useState<Bank[]>([]);
@@ -19,25 +40,55 @@ const Banks: React.FC = () => {
     filterData();
   }, [banks, searchTerm]);
 
+  const mapContaToBank = (c: ContaApi): Bank => ({
+    id: String(c.idConta),
+    name: c.fkBanco?.nomeBanco ?? 'Banco',
+    code: String(c.fkBanco?.idBanco ?? ''), // exibe no “Código”
+    accountNumber: `${c.conta}-${c.dvConta}`,
+    agency: c.agencia,
+    currentBalance: Number(c.saldo ?? 0),
+    createdAt: new Date(), // backend não envia; usando fallback
+    isActive: c.statusConta === 1,
+  });
+
   const loadData = async () => {
+    setLoading(true);
     try {
-      const data = await bankService.getAll();
-      setBanks(data);
+      // carrega todas as páginas de /contas e consolida
+      const first = await api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: 0 } });
+      const totalPages = Number(first.data.totalPages ?? 1);
+      let all = first.data.content ?? [];
+
+      if (totalPages > 1) {
+        const promises = [];
+        for (let p = 1; p < totalPages; p++) {
+          promises.push(api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: p } }));
+        }
+        const pages = await Promise.all(promises);
+        pages.forEach(res => {
+          all = all.concat(res.data.content ?? []);
+        });
+      }
+
+      const mapped = all.map(mapContaToBank);
+      setBanks(mapped);
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
+      console.error('Erro ao carregar contas:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const filterData = () => {
-    let filtered = banks.filter(bank => bank.isActive);
+    let filtered = banks.filter(b => b.isActive);
 
     if (searchTerm) {
-      filtered = filtered.filter(bank =>
-        bank.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        bank.code.includes(searchTerm) ||
-        bank.accountNumber.includes(searchTerm)
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(b =>
+        b.name.toLowerCase().includes(term) ||
+        b.code?.toString().includes(term) ||
+        b.accountNumber?.toString().includes(term) ||
+        b.agency?.toString().includes(term)
       );
     }
 
@@ -60,7 +111,7 @@ const Banks: React.FC = () => {
         const bank = banks.find(b => b.id === id);
         if (bank) {
           bank.isActive = false;
-          loadData();
+          filterData();
         }
       } catch (error) {
         console.error('Erro ao excluir:', error);
@@ -69,16 +120,11 @@ const Banks: React.FC = () => {
     }
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value);
-  };
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('pt-BR').format(date);
-  };
+  const formatDate = (date: Date) =>
+    new Intl.DateTimeFormat('pt-BR').format(date);
 
   if (loading) {
     return (
@@ -94,12 +140,9 @@ const Banks: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Bancos</h1>
-          <p className="text-secondary-600">Gerencie as contas bancárias da empresa</p>
+          <p className="text-secondary-600">Contas bancárias cadastradas (Banco + Conta)</p>
         </div>
-        <button
-          onClick={handleCreate}
-          className="btn-primary flex items-center"
-        >
+        <button onClick={handleCreate} className="btn-primary flex items-center">
           <Plus className="h-5 w-5 mr-2" />
           Novo Banco
         </button>
@@ -111,7 +154,7 @@ const Banks: React.FC = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-secondary-400" />
           <input
             type="text"
-            placeholder="Buscar por nome, código ou conta..."
+            placeholder="Buscar por banco, código, agência ou conta..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="input-field pl-10"
@@ -124,7 +167,7 @@ const Banks: React.FC = () => {
         {filteredData.length === 0 ? (
           <div className="col-span-full text-center py-12">
             <Building2 className="h-12 w-12 text-secondary-400 mx-auto mb-4" />
-            <p className="text-secondary-500">Nenhum banco encontrado</p>
+            <p className="text-secondary-500">Nenhuma conta encontrada</p>
           </div>
         ) : (
           filteredData.map((bank) => (
@@ -168,9 +211,7 @@ const Banks: React.FC = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-secondary-600">Saldo Atual:</span>
-                  <span className={`text-sm font-semibold ${
-                    bank.currentBalance >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <span className={`text-sm font-semibold ${bank.currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(bank.currentBalance)}
                   </span>
                 </div>
@@ -184,7 +225,7 @@ const Banks: React.FC = () => {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Modal (mantido) */}
       {showModal && (
         <BankModal
           bank={editingBank}
@@ -227,17 +268,36 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave }) => {
     }
   }, [bank]);
 
+  // helper para separar conta e DV (formato "12345-6")
+  const splitAccount = (accWithDv: string) => {
+    const [acc, dv] = String(accWithDv ?? '').split('-').map(s => s.trim());
+    return { conta: acc || '', dvConta: Number(dv) || 0 };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    const { conta, dvConta } = splitAccount(formData.accountNumber);
+    const payload = {
+      agencia: formData.agency,
+      conta,
+      dvConta,
+      saldo: Number(formData.currentBalance) || 0,
+      tipoConta: 'CORRENTE',
+      statusConta: 1,
+      fkBanco: {
+        idBanco: Number(formData.code),
+        nomeBanco: formData.name
+      }
+    };
+
     try {
       if (bank) {
-        await bankService.update(bank.id, formData);
+        // atualiza a conta existente
+        await api.put(`/contas/${bank.id}`, payload);
       } else {
-        await bankService.create({
-          ...formData,
-          isActive: true
-        });
+        // cria nova conta
+        await api.post('/contas', payload);
       }
       onSave();
     } catch (error) {

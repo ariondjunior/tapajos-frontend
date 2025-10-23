@@ -33,7 +33,7 @@ export interface ClientSupplier {
   id: string;
   tradeName: string;
   corporateName: string;
-  typeCorporate: 'client' | 'supplier';
+  typeCorporate: 'client' | 'supplier' | 'both';
   typePerson: 'individual' | 'company';
   document: string; // CPF/CNPJ
   email: string;

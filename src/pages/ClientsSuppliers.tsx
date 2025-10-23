@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { clientSupplierService, userService } from '../services';
 import { ClientSupplier } from '../types';
 import api from '../services/api';
@@ -10,9 +10,9 @@ type EmpresaApi = {
   idEmpresa: number;
   razaoSocial: string;
   nomeFantasia: string;
-  tipoEmpresa: 'CLIENTE' | 'FORNECEDOR' | 'AMBOS';
+  tipoEmpresa: number; // 0 = CLIENTE, 1 = FORNECEDOR, 2 = AMBOS
   cpfCnpj: string;
-  tipoPessoa: 'FISICA' | 'JURIDICA';
+  tipoPessoa: number; // 0 = FISICA, 1 = JURIDICA (assumindo)
   email: string;
   telefone: string;
   ruaEmpresa: string;
@@ -24,14 +24,50 @@ type EmpresaApi = {
   cidadeEmpresa?: string;
 };
 
+// Tipo da resposta paginada da API
+type PaginatedResponse<T> = {
+  content: T[];
+  pageable: {
+    pageNumber: number;
+    pageSize: number;
+    sort: {
+      empty: boolean;
+      unsorted: boolean;
+      sorted: boolean;
+    };
+    offset: number;
+    unpaged: boolean;
+    paged: boolean;
+  };
+  last: boolean;
+  totalPages: number;
+  totalElements: number;
+  size: number;
+  number: number;
+  sort: {
+    empty: boolean;
+    unsorted: boolean;
+    sorted: boolean;
+  };
+  first: boolean;
+  numberOfElements: number;
+  empty: boolean;
+};
+
 const ClientsSuppliers: React.FC = () => {
   const [clientsSuppliers, setClientsSuppliers] = useState<ClientSupplier[]>([]);
   const [filteredData, setFilteredData] = useState<ClientSupplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'client' | 'supplier'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'client' | 'supplier' | 'both'>('all'); // adicionado 'both'
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ClientSupplier | null>(null);
-  const [loading, setLoading] = useState(false); // inicia como false para não travar a tela
+  const [loading, setLoading] = useState(false);
+  
+  // Estados de paginação (pageSize fixo em 10)
+  const [currentPage, setCurrentPage] = useState(0);
+  const pageSize = 10; // fixo, não precisa de state
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
   const currentUser = userService.getCurrentUser();
 
@@ -40,13 +76,25 @@ const ClientsSuppliers: React.FC = () => {
   //   loadData();
   // }, []);
 
-  // Mapeia EmpresaApi -> ClientSupplier (para reutilizar a tabela existente)
+  // normaliza o número tipoEmpresa para os valores usados na UI
+  const toTypeCorporate = (v: number): 'client' | 'supplier' | 'both' => {
+    if (v === 1) return 'supplier'; // FORNECEDOR
+    if (v === 2) return 'both';     // AMBOS
+    return 'client';                 // CLIENTE (0 ou qualquer outro)
+  };
+
+  // normaliza tipoPessoa
+  const toTypePerson = (v: number): 'individual' | 'company' => {
+    return v === 1 ? 'company' : 'individual'; // 1 = JURIDICA, 0 = FISICA
+  };
+
+  // Mapeia EmpresaApi -> ClientSupplier
   const mapEmpresaToClientSupplier = (e: EmpresaApi): ClientSupplier => ({
     id: String(e.idEmpresa),
     tradeName: e.nomeFantasia,
     corporateName: e.razaoSocial,
-    typeCorporate: e.tipoEmpresa === 'FORNECEDOR' ? 'supplier' : 'client',
-    typePerson: e.tipoPessoa === 'JURIDICA' ? 'company' : 'individual',
+    typeCorporate: toTypeCorporate(e.tipoEmpresa),
+    typePerson: toTypePerson(e.tipoPessoa),
     document: e.cpfCnpj,
     email: e.email,
     phone: e.telefone,
@@ -61,16 +109,43 @@ const ClientsSuppliers: React.FC = () => {
     isActive: true,
   });
 
-  // Busca ao clicar em "Pesquisar"
-  const handleSearch = async () => {
+  // Busca ao clicar em "Pesquisar" ou mudar página
+  const handleSearch = async (page: number = 0) => {
     setLoading(true);
     try {
-      const res = await api.get<EmpresaApi[]>('/empresa');
-      const mapped = res.data.map(mapEmpresaToClientSupplier);
+      // Garante que page é número
+      const pageNum = Number(page);
+      
+      console.log('Buscando com params:', { page: pageNum, size: pageSize });
+      
+      const res = await api.get<PaginatedResponse<EmpresaApi>>('/empresa', {
+        params: {
+          page: pageNum,
+          size: pageSize,
+        }
+      });
+      
+      console.log('Resposta completa da API:', res);
+      console.log('res.data:', res.data);
+
+      const empresas = res.data.content || [];
+      console.log('Empresas extraídas:', empresas);
+      
+      const mapped = empresas.map(mapEmpresaToClientSupplier);
+      console.log('Empresas mapeadas:', mapped);
+      
       setClientsSuppliers(mapped);
+      setCurrentPage(res.data.number);
+      setTotalPages(res.data.totalPages);
+      setTotalElements(res.data.totalElements);
     } catch (err) {
       console.error('Erro ao buscar empresas:', err);
-      alert('Erro ao buscar empresas');
+      if (axios.isAxiosError(err)) {
+        console.error('Detalhes do erro:', err.response?.data);
+        alert(`Erro ao buscar empresas: ${err.response?.data?.message || err.message}`);
+      } else {
+        alert('Erro ao buscar empresas');
+      }
     } finally {
       setLoading(false);
     }
@@ -120,10 +195,20 @@ const ClientsSuppliers: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    // usa o id do item como userId
+    const userId = Number(id);
+    if (Number.isNaN(userId)) {
+      alert('ID inválido para exclusão.');
+      return;
+    }
+
     if (window.confirm('Tem certeza que deseja excluir este item?')) {
       try {
-        await clientSupplierService.delete(id);
-        loadData();
+        await api.delete(`/empresa/${id}`, {
+          params: { userId },
+        });
+        alert('Item excluído com sucesso');
+        handleSearch(); // recarrega os dados
       } catch (error) {
         console.error('Erro ao excluir:', error);
         alert('Erro ao excluir item');
@@ -142,6 +227,47 @@ const ClientsSuppliers: React.FC = () => {
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('pt-BR').format(date);
+  };
+
+  // Funções de navegação de página
+  const handlePreviousPage = () => {
+    if (currentPage > 0) {
+      handleSearch(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      handleSearch(currentPage + 1);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    handleSearch(page);
+  };
+
+  // Handler para o botão de pesquisa (não recebe parâmetro)
+  const handleSearchClick = () => {
+    handleSearch(0); // reseta para página 0 ao pesquisar
+  };
+
+  // Gera array de páginas para exibir
+  const getPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    
+    let startPage = Math.max(0, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages - 1, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+      startPage = Math.max(0, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    return pages;
   };
 
   if (loading) {
@@ -187,16 +313,17 @@ const ClientsSuppliers: React.FC = () => {
           <div className="sm:w-48">
             <select
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value as 'all' | 'client' | 'supplier')}
+              onChange={(e) => setFilterType(e.target.value as 'all' | 'client' | 'supplier' | 'both')}
               className="input-field"
             >
               <option value="all">Todos</option>
               <option value="client">Clientes</option>
               <option value="supplier">Fornecedores</option>
+              <option value="both">Ambos</option>
             </select>
           </div>
           <div>
-            <button onClick={handleSearch} className="btn-primary w-full sm:w-auto">
+            <button onClick={handleSearchClick} className="btn-primary w-full sm:w-auto">
               Pesquisar
             </button>
           </div>
@@ -209,6 +336,7 @@ const ClientsSuppliers: React.FC = () => {
           <table className="min-w-full divide-y divide-secondary-200">
             <thead>
               <tr className="table-header">
+                <th className="px-6 py-3 text-left">ID Usuário</th>
                 <th className="px-6 py-3 text-left">Nome</th>
                 <th className="px-6 py-3 text-left">Documento</th>
                 <th className="px-6 py-3 text-left">Email</th>
@@ -221,24 +349,40 @@ const ClientsSuppliers: React.FC = () => {
             <tbody className="bg-white divide-y divide-secondary-200">
               {filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="table-cell text-center text-secondary-500">
+                  <td colSpan={8} className="table-cell text-center text-secondary-500">
                     Nenhum registro encontrado
                   </td>
                 </tr>
               ) : (
                 filteredData.map((item) => (
                   <tr key={item.id} className="hover:bg-secondary-50">
+                    <td className="table-cell">{item.id}</td>
                     <td className="table-cell font-medium">{item.corporateName}</td>
                     <td className="table-cell">{formatDocument(item.document)}</td>
                     <td className="table-cell">{item.email}</td>
                     <td className="table-cell">{item.phone}</td>
                     <td className="table-cell">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${item.typeCorporate === 'client'
-                        ? 'bg-blue-100 text-blue-800'
-                        : 'bg-green-100 text-green-800'
-                        }`}>
-                        {item.typeCorporate === 'client' ? 'Cliente' : 'Fornecedor'}
-                      </span>
+                      {(() => {
+                        const raw = String(item.typeCorporate ?? '').toUpperCase();
+                        const isClient = raw === 'CLIENT' || raw === 'CLIENTE';
+                        const isSupplier = raw === 'SUPPLIER' || raw === 'FORNECEDOR';
+                        const isBoth = raw === 'BOTH' || raw === 'AMBOS';
+
+                        const badge =
+                          isClient
+                            ? { label: 'Cliente', cls: 'bg-blue-100 text-blue-800' }
+                            : isSupplier
+                            ? { label: 'Fornecedor', cls: 'bg-green-100 text-green-800' }
+                            : isBoth
+                            ? { label: 'Ambos', cls: 'bg-purple-100 text-purple-800' }
+                            : { label: '—', cls: 'bg-gray-100 text-gray-800' };
+
+                        return (
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${badge.cls}`}>
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="table-cell">{formatDate(item.createdAt)}</td>
                     <td className="table-cell text-right">
@@ -265,6 +409,78 @@ const ClientsSuppliers: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Controles de Paginação */}
+        <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-secondary-200 sm:px-6">
+          <div className="flex-1 flex justify-between sm:hidden">
+            <button
+              onClick={handlePreviousPage}
+              disabled={currentPage === 0}
+              className="relative inline-flex items-center px-4 py-2 border border-secondary-300 text-sm font-medium rounded-md text-secondary-700 bg-white hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage >= totalPages - 1}
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-secondary-300 text-sm font-medium rounded-md text-secondary-700 bg-white hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Próxima
+            </button>
+          </div>
+          
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-secondary-700">
+                Mostrando <span className="font-medium">{currentPage * pageSize + 1}</span> a{' '}
+                <span className="font-medium">
+                  {Math.min((currentPage + 1) * pageSize, totalElements)}
+                </span>{' '}
+                de <span className="font-medium">{totalElements}</span> resultados
+              </p>
+            </div>
+            
+            <div>
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 0}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-secondary-300 bg-white text-sm font-medium text-secondary-500 hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="sr-only">Anterior</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                
+                {getPageNumbers().map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                      page === currentPage
+                        ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
+                        : 'bg-white border-secondary-300 text-secondary-500 hover:bg-secondary-50'
+                    }`}
+                  >
+                    {page + 1}
+                  </button>
+                ))}
+                
+                <button
+                  onClick={handleNextPage}
+                  disabled={currentPage >= totalPages - 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-secondary-300 bg-white text-sm font-medium text-secondary-500 hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="sr-only">Próxima</span>
+                  <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Modal */}
@@ -274,7 +490,7 @@ const ClientsSuppliers: React.FC = () => {
           onClose={() => setShowModal(false)}
           onSave={() => {
             setShowModal(false);
-            loadData();
+            handleSearch(); // recarrega a página atual
           }}
         />
       )}
@@ -293,7 +509,8 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
   const [formData, setFormData] = useState({
     tradeName: '',
     corporateName: '',
-    typeCorporate: 'client' as 'client' | 'supplier',
+    // alterado: usar valores em PT-BR para alinhar com o <select>
+    typeCorporate: 'CLIENTE' as 'CLIENTE' | 'FORNECEDOR' | 'AMBOS',
     typePerson: 'individual' as 'individual' | 'company',
     document: '',
     email: '',
@@ -315,7 +532,8 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
       setFormData({
         tradeName: item.tradeName,
         corporateName: item.corporateName,
-        typeCorporate: item.typeCorporate,
+        // mapeia 'client' | 'supplier' | 'both' -> 'CLIENTE' | 'FORNECEDOR' | 'AMBOS'
+        typeCorporate: toTipoEmpresa(item.typeCorporate),
         typePerson: item.typePerson,
         document: item.document,
         email: item.email,
@@ -337,29 +555,46 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
     const d = onlyDigits(v);
     return d ? parseInt(d, 10) : null;
   };
-  const toTipoEmpresa = (v: string) => {
-    // aceita 'client'/'supplier' ou valores já em PT-BR
-    if (v === 'client' || v === 'CLIENTE') return 'CLIENTE';
-    if (v === 'supplier' || v === 'FORNECEDOR') return 'FORNECEDOR';
-    if (v === 'AMBOS') return 'AMBOS';
-    return 'CLIENTE';
+  
+  // Converte 'CLIENTE'/'FORNECEDOR'/'AMBOS' para número (0/1/2)
+  const toTipoEmpresaNumero = (v: string): number => {
+    const s = String(v ?? '').toUpperCase();
+    if (s === 'FORNECEDOR') return 1;
+    if (s === 'AMBOS') return 2;
+    return 0; // CLIENTE
   };
-  const toTipoPessoa = (v: string) => {
-    // 'individual' -> FISICA, 'company' -> JURIDICA
-    if (v === 'company' || v === 'JURIDICA') return 'JURIDICA';
-    return 'FISICA';
+  
+  // Converte 'FISICA'/'JURIDICA' ou 'individual'/'company' para número (0/1)
+  const toTipoPessoaNumero = (v: string): number => {
+    const s = String(v ?? '').toUpperCase();
+    if (s === 'COMPANY' || s === 'JURIDICA') return 1;
+    return 0; // FISICA/individual
+  };
+
+  // Mapeia número para string PT-BR (para usar no modal)
+  const toTipoEmpresa = (v: string | number): 'CLIENTE' | 'FORNECEDOR' | 'AMBOS' => {
+    if (typeof v === 'number') {
+      if (v === 1) return 'FORNECEDOR';
+      if (v === 2) return 'AMBOS';
+      return 'CLIENTE';
+    }
+    // aceita 'client'/'supplier'/'both' ou valores já em PT-BR
+    const s = String(v ?? '').toUpperCase();
+    if (s === 'SUPPLIER' || s === 'FORNECEDOR') return 'FORNECEDOR';
+    if (s === 'BOTH' || s === 'AMBOS') return 'AMBOS';
+    return 'CLIENTE';
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const payload = {
-      ...(item ? { idEmpresa: Number(item.id) } : {}), // envie se necessário no update
+      ...(item ? { idEmpresa: Number(item.id) } : {}),
       razaoSocial: formData.corporateName,
       nomeFantasia: formData.tradeName,
-      tipoEmpresa: toTipoEmpresa(formData.typeCorporate),
+      tipoEmpresa: toTipoEmpresaNumero(formData.typeCorporate), // agora envia número
       cpfCnpj: onlyDigits(formData.document),
-      tipoPessoa: toTipoPessoa(formData.typePerson),
+      tipoPessoa: toTipoPessoaNumero(formData.typePerson), // agora envia número
       email: formData.email,
       telefone: onlyDigits(formData.phone),
       ruaEmpresa: formData.street,
@@ -368,6 +603,7 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
       cepEmpresa: onlyDigits(formData.zipCode),
       estadoEmpresa: formData.state,
       paisEmpresa: formData.country,
+      cidadeEmpresa: formData.city,
     };
 
     try {
@@ -398,7 +634,7 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
           <form onSubmit={handleSubmit}>
             <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {item ? `Editar ${formData.typeCorporate === 'client' ? 'Cliente' : 'Fornecedor'}` : 'Novo cadastro'}
+                {item ? `Editar ${formData.typeCorporate === 'CLIENTE' ? 'Cliente' : formData.typeCorporate === 'FORNECEDOR' ? 'Fornecedor' : 'Ambos'}` : 'Novo cadastro'}
               </h3>
 
               <div className="space-y-4">
@@ -408,7 +644,7 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
                   </label>
                   <select
                     value={formData.typeCorporate}
-                    onChange={(e) => setFormData({ ...formData, typeCorporate: e.target.value as 'client' | 'supplier' })}
+                    onChange={(e) => setFormData({ ...formData, typeCorporate: e.target.value as 'CLIENTE' | 'FORNECEDOR' | 'AMBOS' })}
                     className="input-field"
                     required
                   >
@@ -511,7 +747,7 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
                     />
                   </div>
 
-                 <div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Número *
                     </label>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, useEffect } from 'react'
+import { createContext, useContext, useMemo, useState, useEffect, ReactNode } from 'react'
 import api from '../services/api'
 
 export type Entity = {
@@ -15,7 +15,7 @@ export type Bank = {
 
 export type Entry = {
   id: string
-  date: string // ISO
+  date: string
   user: string
   entityId?: string
   bankId?: string
@@ -37,7 +37,9 @@ type FinanceContextType = {
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined)
 
-function uid(prefix = '') { return prefix + Math.random().toString(36).slice(2,9) }
+function uid(prefix = '') {
+  return prefix + Date.now() + Math.random().toString(36).substring(2, 9)
+}
 
 // Tipos do backend de /contas (paginado)
 type ContaApi = {
@@ -66,7 +68,7 @@ type PaginatedResponse<T> = {
   empty: boolean
 }
 
-export const FinanceProvider: React.FC<{children:React.ReactNode}> = ({children}) => {
+export const FinanceProvider: React.FC<{children: ReactNode}> = ({children}) => {
   const [entities, setEntities] = useState<Entity[]>(() => [
     { id: 'e1', name: 'Cliente A', isClient: true },
     { id: 'e2', name: 'Fornecedor X', isClient: false },
@@ -93,9 +95,15 @@ export const FinanceProvider: React.FC<{children:React.ReactNode}> = ({children}
         const totalPages = Number(first.data.totalPages ?? 1)
 
         // Busca páginas restantes (se houver)
-        for (let p = 1; p < totalPages; p++) {
-          const res = await api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: p } })
-          all = all.concat(res.data.content ?? [])
+        if (totalPages > 1) {
+          const promises = [];
+          for (let p = 1; p < totalPages; p++) {
+            promises.push(api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: p } }))
+          }
+          const pages = await Promise.all(promises)
+          pages.forEach(res => {
+            all = all.concat(res.data.content ?? [])
+          })
         }
 
         const mapped = all.map(mapContaToBank)
@@ -109,49 +117,42 @@ export const FinanceProvider: React.FC<{children:React.ReactNode}> = ({children}
   }, [])
 
   const addEntity = (e: Omit<Entity, 'id'>) => {
-    const ne = { ...e, id: uid('e') }
-    setEntities(v => [...v, ne])
-    return ne
+    const newEntity = { id: uid('e'), ...e }
+    setEntities(prev => [...prev, newEntity])
+    return newEntity
   }
+
   const addBank = (b: Omit<Bank, 'id'>) => {
-    const nb = { ...b, id: uid('b') }
-    setBanks(v => [...v, nb])
-    return nb
+    const newBank = { id: uid('b'), ...b }
+    setBanks(prev => [...prev, newBank])
+    return newBank
   }
 
   const addEntry = (e: Omit<Entry, 'id' | 'date'>) => {
-    const ne: Entry = { ...e, id: uid('ent'), date: new Date().toISOString() }
-    setEntries(v => [ne, ...v])
-    // if it's already paid and linked to bank, create bank movement
-    if (ne.paid && ne.bankId) {
-      setBanks(bs => bs.map(b => b.id === ne.bankId ? { ...b, balance: Math.round((b.balance + (ne.type === 'receivable' ? ne.amount : -ne.amount)) * 100) / 100 } : b))
-      // add bank entry record
-      const bankMove: Entry = { id: uid('ent'), date: new Date().toISOString(), user: ne.user, bankId: ne.bankId, type: 'bank', description: `Movimento automático: ${ne.description ?? ''}`, amount: ne.type === 'receivable' ? ne.amount : -ne.amount }
-      setEntries(v => [bankMove, ...v])
-    }
-    return ne
+    const newEntry = { id: uid('ent'), date: new Date().toISOString(), ...e }
+    setEntries(prev => [...prev, newEntry])
+    return newEntry
   }
 
-  const payEntry = (id: string, user: string, date = new Date().toISOString()) => {
-    const entry = entries.find(e => e.id === id)
-    if (!entry) return
-    if (entry.paid) return
-    // mark as paid
-    setEntries(v => v.map(e => e.id === id ? { ...e, paid: true, user, date } : e))
-    // create bank movement and update balance
-    if (entry.bankId) {
-      setBanks(bs => bs.map(b => b.id === entry.bankId ? { ...b, balance: Math.round((b.balance + (entry.type === 'receivable' ? entry.amount : -entry.amount)) * 100) / 100 } : b))
-      const bankMove: Entry = { id: uid('ent'), date, user, bankId: entry.bankId, type: 'bank', description: `Movimento automático: ${entry.description ?? ''}`, amount: entry.type === 'receivable' ? entry.amount : -entry.amount }
-      setEntries(v => [bankMove, ...v])
-    }
+  const payEntry = (id: string, user: string, date?: string) => {
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, paid: true, user, date: date ?? new Date().toISOString() } : e))
   }
 
-  const value = useMemo(() => ({ entities, banks, entries, addEntity, addBank, addEntry, payEntry }), [entities, banks, entries])
+  const value = useMemo(() => ({ 
+    entities, 
+    banks, 
+    entries, 
+    addEntity, 
+    addBank, 
+    addEntry, 
+    payEntry 
+  }), [entities, banks, entries])
+
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>
 }
 
 export const useFinance = () => {
-  const c = useContext(FinanceContext)
-  if (!c) throw new Error('useFinance must be used inside FinanceProvider')
-  return c
+  const ctx = useContext(FinanceContext)
+  if (!ctx) throw new Error('useFinance must be used within FinanceProvider')
+  return ctx
 }
