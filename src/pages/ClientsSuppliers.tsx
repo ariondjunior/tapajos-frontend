@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
-import { clientSupplierService, userService } from '../services';
+import { userService } from '../services';
 import { ClientSupplier } from '../types';
 import api from '../services/api';
 import axios from 'axios';
@@ -151,20 +151,16 @@ const ClientsSuppliers: React.FC = () => {
     }
   };
 
+  // Carrega os dados ao montar o componente (página 0)
+  useEffect(() => {
+    handleSearch(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     filterData();
   }, [clientsSuppliers, searchTerm, filterType]);
 
-  const loadData = async () => {
-    try {
-      const data = await clientSupplierService.getAll();
-      setClientsSuppliers(data);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const filterData = () => {
     let filtered = clientsSuppliers.filter(item => item.isActive);
@@ -595,15 +591,16 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
       tipoEmpresa: toTipoEmpresaNumero(formData.typeCorporate), // agora envia número
       cpfCnpj: onlyDigits(formData.document),
       tipoPessoa: toTipoPessoaNumero(formData.typePerson), // agora envia número
-      email: formData.email,
-      telefone: onlyDigits(formData.phone),
-      ruaEmpresa: formData.street,
-      numeroEmpresa: toInt(formData.number),
-      bairroEmpresa: formData.district,
-      cepEmpresa: onlyDigits(formData.zipCode),
-      estadoEmpresa: formData.state,
-      paisEmpresa: formData.country,
-      cidadeEmpresa: formData.city,
+      email: formData.email || '',
+      telefone: onlyDigits(formData.phone) || '',
+      ruaEmpresa: formData.street || '',
+      // numeroEmpresa is NOT NULL in DB schema; send 0 if empty to avoid null constraint failures
+      numeroEmpresa: toInt(formData.number) ?? 0,
+      bairroEmpresa: formData.district || '',
+      cepEmpresa: onlyDigits(formData.zipCode) || '',
+      estadoEmpresa: formData.state || '',
+      paisEmpresa: formData.country || '',
+      cidadeEmpresa: formData.city || '',
     };
 
     try {
