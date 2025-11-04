@@ -522,41 +522,46 @@ const Payables: React.FC = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  // Carregar fornecedores e contas ao montar
-  useEffect(() => {
-    loadSuppliers();
-    loadAccounts();
-  }, []);
-
+  // Buscar fornecedores (usar /empresa)
   const loadSuppliers = async () => {
     try {
-      const res = await api.get('/empresas');
-      console.log('Fornecedores carregados:', res.data);
-      const empresas = res.data.content || res.data || [];
+      const res = await api.get('/empresa', { params: { page: 0, pageSize: 50 } });
+      const empresas = res.data?.content || res.data || [];
       const fornecedores = empresas.filter((e: any) => e.tipoEmpresa === 1);
-      console.log('Fornecedores filtrados:', fornecedores);
-      setSuppliers(fornecedores.map((e: any) => ({
-        id: e.idEmpresa,
-        name: e.nomeFantasia || e.razaoSocial
-      })));
+      setSuppliers(
+        fornecedores.map((e: any) => ({
+          id: e.idEmpresa,
+          name: e.nomeFantasia || e.razaoSocial,
+        }))
+      );
     } catch (error) {
-      console.error('Erro ao carregar fornecedores:', error);
+      console.error('Erro ao carregar fornecedores (/empresa):', error);
     }
   };
 
+  // Buscar contas bancárias (usar /conta)
   const loadAccounts = async () => {
     try {
-      const res = await api.get('/contas');
-      console.log('Contas carregadas:', res.data);
-      const contas = res.data.content || res.data || [];
-      setAccounts(contas.map((c: any) => ({
-        id: c.idConta,
-        name: `${c.fkBanco?.nomeBanco || 'Banco'} - Ag ${c.agencia} Cc ${c.conta}-${c.dvConta}`
-      })));
+      const res = await api.get('/conta', { params: { page: 0, pageSize: 100 } });
+      const contas = res.data?.content || res.data || [];
+      setAccounts(
+        contas.map((c: any) => ({
+          id: c.idConta,
+          name: `${c.fkBanco?.nomeBanco || 'Banco'} - Ag ${c.agencia} Cc ${c.conta}-${c.dvConta}`,
+        }))
+      );
     } catch (error) {
-      console.error('Erro ao carregar contas:', error);
+      console.error('Erro ao carregar contas (/conta):', error);
     }
   };
+
+  // Evitar requisição no mount: só quando o modal abrir
+  useEffect(() => {
+    if (showEditModal) {
+      if (suppliers.length === 0) loadSuppliers();
+      if (accounts.length === 0) loadAccounts();
+    }
+  }, [showEditModal]);
 
   // Removido o useEffect inicial que carregava automaticamente
   // useEffect(() => {
