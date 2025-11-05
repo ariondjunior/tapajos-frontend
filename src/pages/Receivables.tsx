@@ -74,6 +74,7 @@ const Receivables: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editing, setEditing] = useState<ReceivableItem | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Paginação
   const [currentPage, setCurrentPage] = useState(0);
@@ -258,7 +259,7 @@ const Receivables: React.FC = () => {
           <h1 className="text-2xl font-bold text-secondary-900">Contas a Receber</h1>
           <p className="text-secondary-600">Gerencie as duplicatas de clientes</p>
         </div>
-        <button onClick={() => alert('Abrir modal de criação')} className="btn-primary flex items-center">
+        <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center">
           <Plus className="h-5 w-5 mr-2" />
           Nova Conta a Receber
         </button>
@@ -543,6 +544,16 @@ const Receivables: React.FC = () => {
           handleSearch(currentPage, pageSize);
         }}
       />
+
+      <CreateReceivableModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onSaved={() => {
+          setShowCreateModal(false);
+          // Recarrega a página atual após criar
+          handleSearch(currentPage, pageSize);
+        }}
+      />
     </div>
   );
 };
@@ -563,6 +574,7 @@ const EditReceivableModal: React.FC<{
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [showCompanyList, setShowCompanyList] = useState(false);
+  const [companySelectedQuery, setCompanySelectedQuery] = useState('');
 
   // Conta (autocomplete com prévia)
   const [accountQuery, setAccountQuery] = useState('');
@@ -570,7 +582,8 @@ const EditReceivableModal: React.FC<{
   const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [showAccountList, setShowAccountList] = useState(false);
-  const [accountPreview, setAccountPreview] = useState<BankAccount | null>(null);
+  const [accountSelectedQuery, setAccountSelectedQuery] = useState('');
+  
 
   // Form
   const [form, setForm] = useState({
@@ -688,70 +701,109 @@ const EditReceivableModal: React.FC<{
     setAccountQuery(item.bankName ? `${item.bankName} • ${item.accountInfo}` : '');
     setAccountOptions([]);
     setShowAccountList(false);
-    setAccountPreview(null);
+    
 
     setError(null);
   }, [open, item]);
 
   // Busca empresas (q >= 2)
   useEffect(() => {
-    const t = setTimeout(async () => {
-      if (!open) return;
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!open || !showCompanyList) return;
       const q = companyQuery.trim();
+      // if query was set by selecting an item, skip fetching
+      if (companySelectedQuery && companySelectedQuery === q) return;
       if (q.length < 2) {
-        setCompanyOptions([]);
+        if (mounted) setCompanyOptions([]);
         return;
       }
-      try {
-        setLoadingCompanies(true);
-        const res = await api.get('/empresa', { params: { q } });
-        const data = res.data?.content || res.data || [];
-        const list: CompanyOption[] = data
-          .map((e: any) => ({
-            id: e.idEmpresa ?? e.id,
-            name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
-          }))
-          .filter((e: any) => e.id && e.name);
-        setCompanyOptions(list);
-        setShowCompanyList(true);
-      } catch (e) {
-        setCompanyOptions([]);
-      } finally {
-        setLoadingCompanies(false);
-      }
+
+      controller = new AbortController();
+      setLoadingCompanies(true);
+
+      api
+        .get('/empresa', { params: { q }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const data = res.data?.content || res.data || [];
+          const list: CompanyOption[] = data
+            .map((e: any) => ({
+              id: e.idEmpresa ?? e.id,
+              name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
+            }))
+            .filter((e: any) => e.id && e.name);
+          setCompanyOptions(list);
+          setShowCompanyList(true);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setCompanyOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingCompanies(false);
+        });
     }, 300);
-    return () => clearTimeout(t);
-  }, [open, companyQuery]);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [open, companyQuery, companySelectedQuery, showCompanyList]);
 
   // Busca contas (q >= 2)  ✅ usa 'size' em vez de 'pageSize'
   useEffect(() => {
-    const t = setTimeout(async () => {
-      if (!open) return;
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!open || !showAccountList) return;
       const q = accountQuery.trim();
-      if (q.length < 2 || accountPreview) return;
-      try {
-        setLoadingAccounts(true);
-        const res = await api.get('/conta', { params: { q, page: 0, size: 20 } });
-        const data = res.data?.content || res.data || [];
-        const list: BankAccount[] = data
-          .map((c: any) => ({
-            idConta: c.idConta ?? c.id,
-            agencia: String(c.agencia ?? ''),
-            conta: String(c.conta ?? ''),
-            dvConta: c.dvConta ?? '',
-            fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
-          }))
-          .filter((c) => !!c.idConta);
-        setAccountOptions(list);
-        setShowAccountList(true);
-      } catch (e) {
-        setAccountOptions([]);
-      } finally {
-        setLoadingAccounts(false);
+      // skip fetching if the query was set by selection
+      if (accountSelectedQuery && accountSelectedQuery === q) return;
+      if (q.length < 2) {
+        if (mounted) setAccountOptions([]);
+        return;
       }
+
+      controller = new AbortController();
+      setLoadingAccounts(true);
+
+      api
+        .get('/conta', { params: { q, page: 0, size: 20 }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const data = res.data?.content || res.data || [];
+          const list: BankAccount[] = data
+            .map((c: any) => ({
+              idConta: c.idConta ?? c.id,
+              agencia: String(c.agencia ?? ''),
+              conta: String(c.conta ?? ''),
+              dvConta: c.dvConta ?? '',
+              fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
+            }))
+            .filter((c: BankAccount) => !!c.idConta);
+          setAccountOptions(list);
+          setShowAccountList(true);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setAccountOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingAccounts(false);
+        });
     }, 300);
-    return () => clearTimeout(t);
-  }, [open, accountQuery, accountPreview]);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [open, accountQuery, accountSelectedQuery, showAccountList]);
 
   if (!open || !item) return null;
 
@@ -782,8 +834,12 @@ const EditReceivableModal: React.FC<{
                 onChange={(e) => {
                   setCompanyQuery(e.target.value);
                   setSelectedCompany(null);
+                  setCompanySelectedQuery('');
                 }}
-                onFocus={() => setShowCompanyList(true)}
+                onFocus={() => {
+                  setCompanySelectedQuery('');
+                  setShowCompanyList(true);
+                }}
                 placeholder="Digite para buscar a empresa..."
                 className="input-field"
               />
@@ -803,6 +859,7 @@ const EditReceivableModal: React.FC<{
                         onClick={() => {
                           setSelectedCompany(opt);
                           setCompanyQuery(opt.name);
+                          setCompanySelectedQuery(opt.name);
                           setShowCompanyList(false);
                         }}
                         className="w-full text-left px-3 py-2 hover:bg-secondary-50"
@@ -829,9 +886,12 @@ const EditReceivableModal: React.FC<{
                 onChange={(e) => {
                   setAccountQuery(e.target.value);
                   setSelectedAccount(null);
-                  setAccountPreview(null);
+                  setAccountSelectedQuery('');
                 }}
-                onFocus={() => setShowAccountList(true)}
+                onFocus={() => {
+                  setAccountSelectedQuery('');
+                  setShowAccountList(true);
+                }}
                 placeholder="Digite para buscar (banco, agência ou conta)..."
                 className="input-field"
               />
@@ -849,7 +909,11 @@ const EditReceivableModal: React.FC<{
                         type="button"
                         key={acc.idConta}
                         onClick={() => {
-                          setAccountPreview(acc);
+                          // select directly
+                          const label = `${acc.fkBanco?.nomeBanco || 'Banco'} • Ag ${acc.agencia} • Cc ${acc.conta}-${acc.dvConta}`;
+                          setSelectedAccount(acc);
+                          setAccountQuery(label);
+                          setAccountSelectedQuery(label);
                           setShowAccountList(false);
                         }}
                         className="w-full text-left px-3 py-2 hover:bg-secondary-50"
@@ -862,43 +926,16 @@ const EditReceivableModal: React.FC<{
                   )}
                 </div>
               )}
-              {(selectedAccount || accountPreview) && (
+              {selectedAccount && (
                 <div className="mt-2 rounded-md border bg-secondary-50 p-3">
                   <div className="text-sm font-semibold mb-1">Resumo da conta selecionada</div>
-                  <div className="text-sm text-secondary-900">
-                    ID: {accountPreview?.idConta ?? selectedAccount?.idConta}
-                  </div>
-                  <div className="text-sm text-secondary-900">
-                    Banco: {accountPreview?.fkBanco?.nomeBanco ?? selectedAccount?.fkBanco?.nomeBanco ?? '-'}
-                  </div>
-                  <div className="text-sm text-secondary-900">
-                    Agência: {accountPreview?.agencia ?? selectedAccount?.agencia} • Conta: {accountPreview?.conta ?? selectedAccount?.conta}-{accountPreview?.dvConta ?? selectedAccount?.dvConta}
-                  </div>
+                  <div className="text-sm text-secondary-900">ID: {selectedAccount.idConta}</div>
+                  <div className="text-sm text-secondary-900">Banco: {selectedAccount.fkBanco?.nomeBanco ?? '-'}</div>
+                  <div className="text-sm text-secondary-900">Agência: {selectedAccount.agencia} • Conta: {selectedAccount.conta}-{selectedAccount.dvConta}</div>
                   <div className="flex justify-end gap-2 mt-2">
-                    {accountPreview ? (
-                      <>
-                        <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setAccountPreview(null)}>
-                          Cancelar
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-primary px-3 py-1 text-sm"
-                          onClick={() => {
-                            setSelectedAccount(accountPreview);
-                            setAccountQuery(
-                              `${accountPreview.fkBanco?.nomeBanco || 'Banco'} • Ag ${accountPreview.agencia} • Cc ${accountPreview.conta}-${accountPreview.dvConta}`
-                            );
-                            setAccountPreview(null);
-                          }}
-                        >
-                          Confirmar
-                        </button>
-                      </>
-                    ) : (
-                      <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>
-                        Limpar
-                      </button>
-                    )}
+                    <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>
+                      Limpar
+                    </button>
                   </div>
                 </div>
               )}
@@ -930,10 +967,11 @@ const EditReceivableModal: React.FC<{
               >
                 <option value="">Selecione</option>
                 <option value="DINHEIRO">Dinheiro</option>
-                <option value="PIX">PIX</option>
                 <option value="BOLETO">Boleto</option>
-                <option value="CARTAO">Cartão</option>
-                <option value="TRANSFERENCIA">Transferência</option>
+                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                <option value="TRANSFERENCIA_BANCARIA">Transferência Bancária</option>
+                <option value="PIX">PIX</option>
               </select>
             </div>
           </div>
@@ -1009,5 +1047,464 @@ const EditReceivableModal: React.FC<{
   );
 };
 // ---------------- Fim do Modal ----------------
+
+// ---------------- Modal de Criação ----------------
+const CreateReceivableModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ open, onClose, onSaved }) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Empresa (autocomplete)
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [showCompanyList, setShowCompanyList] = useState(false);
+  const [companySelectedQuery, setCompanySelectedQuery] = useState('');
+
+  // Conta (autocomplete)
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountOptions, setAccountOptions] = useState<BankAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [showAccountList, setShowAccountList] = useState(false);
+  const [accountSelectedQuery, setAccountSelectedQuery] = useState('');
+
+  // Form
+  const [form, setForm] = useState({
+    descricaoReceber: '',
+    valorReceber: '',
+    formaPagamento: '',
+    usuario: '',
+    dataEmissao: '',
+    dataVencimento: '',
+    dataRec: '',
+  });
+
+  const dateToInput = (d?: Date | null) => {
+    if (!d) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const inputToDateTime = (s: string) => (s ? `${s}T12:00:00` : null);
+  const getEmpresaId = () => (selectedCompany?.id ?? null);
+  const getContaId = () => (selectedAccount?.idConta ?? null);
+
+  const submitCreate = async () => {
+    const empresaId = getEmpresaId();
+    const contaId = getContaId();
+
+    // Validações mínimas
+    if (!empresaId) return setError('Selecione a empresa');
+    if (!contaId) return setError('Selecione a conta bancária');
+    if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
+    if (!form.formaPagamento) return setError('Informe a forma de pagamento');
+    if (!form.dataEmissao) return setError('Informe a data de emissão');
+    if (!form.dataVencimento) return setError('Informe a data de vencimento');
+    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
+
+    const url = `/receber`;
+    const payload = {
+      valorReceber: Number(form.valorReceber),
+      dataVencimento: inputToDateTime(form.dataVencimento),
+      dataEmissao: inputToDateTime(form.dataEmissao),
+      dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
+      descricaoReceber: form.descricaoReceber,
+      formaPagamento: form.formaPagamento,
+      usuario: form.usuario,
+      empresa: { idEmpresa: Number(empresaId) },
+      conta: { idConta: Number(contaId) },
+    };
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      console.debug('POST', url, payload);
+      await api.post(url, payload);
+      alert('Conta a receber criada com sucesso!');
+      onSaved();
+    } catch (err: any) {
+      console.error('Erro no POST /receber:', err?.response || err);
+      const data = err?.response?.data;
+      setError(typeof data === 'string' ? data : data?.message || 'Falha ao criar conta a receber');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    submitCreate();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    // reset everything on open
+    setForm({
+      descricaoReceber: '',
+      valorReceber: '',
+      formaPagamento: '',
+      usuario: '',
+      dataEmissao: '',
+      dataVencimento: '',
+      dataRec: '',
+    });
+    setSelectedCompany(null);
+    setCompanyQuery('');
+    setCompanyOptions([]);
+    setShowCompanyList(false);
+    setCompanySelectedQuery('');
+
+    setSelectedAccount(null);
+    setAccountQuery('');
+    setAccountOptions([]);
+    setShowAccountList(false);
+    setAccountSelectedQuery('');
+
+    setError(null);
+  }, [open]);
+
+  // Busca empresas (q >= 2)
+  useEffect(() => {
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!open || !showCompanyList) return;
+      const q = companyQuery.trim();
+      if (companySelectedQuery && companySelectedQuery === q) return;
+      if (q.length < 2) {
+        if (mounted) setCompanyOptions([]);
+        return;
+      }
+
+      controller = new AbortController();
+      setLoadingCompanies(true);
+
+      api
+        .get('/empresa', { params: { q }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const data = res.data?.content || res.data || [];
+          const list: CompanyOption[] = data
+            .map((e: any) => ({
+              id: e.idEmpresa ?? e.id,
+              name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
+            }))
+            .filter((e: any) => e.id && e.name);
+          setCompanyOptions(list);
+          setShowCompanyList(true);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setCompanyOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingCompanies(false);
+        });
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [open, companyQuery, companySelectedQuery, showCompanyList]);
+
+  // Busca contas (q >= 2)
+  useEffect(() => {
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!open || !showAccountList) return;
+      const q = accountQuery.trim();
+      if (accountSelectedQuery && accountSelectedQuery === q) return;
+      if (q.length < 2) {
+        if (mounted) setAccountOptions([]);
+        return;
+      }
+
+      controller = new AbortController();
+      setLoadingAccounts(true);
+
+      api
+        .get('/conta', { params: { q, page: 0, size: 20 }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const data = res.data?.content || res.data || [];
+          const list: BankAccount[] = data
+            .map((c: any) => ({
+              idConta: c.idConta ?? c.id,
+              agencia: String(c.agencia ?? ''),
+              conta: String(c.conta ?? ''),
+              dvConta: c.dvConta ?? '',
+              fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
+            }))
+            .filter((c: BankAccount) => !!c.idConta);
+          setAccountOptions(list);
+          setShowAccountList(true);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setAccountOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingAccounts(false);
+        });
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [open, accountQuery, accountSelectedQuery, showAccountList]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-lg font-semibold">Criar Nova Conta a Receber</h2>
+          <button onClick={onClose} className="text-secondary-500 hover:text-secondary-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form className="p-6 space-y-4" onSubmit={handleSubmit}>
+          {error && (
+            <div className="px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm border border-red-200">
+              {error}
+            </div>
+          )}
+
+          {/* Empresa */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Empresa (Cliente) *</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={companyQuery}
+                onChange={(e) => {
+                  setCompanyQuery(e.target.value);
+                  setSelectedCompany(null);
+                  setCompanySelectedQuery('');
+                }}
+                onFocus={() => {
+                  setCompanySelectedQuery('');
+                  setShowCompanyList(true);
+                }}
+                placeholder="Digite para buscar a empresa..."
+                className="input-field"
+              />
+              {showCompanyList && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {loadingCompanies ? (
+                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                  ) : companyQuery.trim().length < 2 ? (
+                    <div className="p-3 text-sm text-secondary-500">Digite pelo menos 2 caracteres</div>
+                  ) : companyOptions.length === 0 ? (
+                    <div className="p-3 text-sm text-secondary-500">Nenhuma empresa encontrada</div>
+                  ) : (
+                    companyOptions.map((opt) => (
+                      <button
+                        type="button"
+                        key={opt.id}
+                        onClick={() => {
+                          setSelectedCompany(opt);
+                          setCompanyQuery(opt.name);
+                          setCompanySelectedQuery(opt.name);
+                          setShowCompanyList(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-secondary-50"
+                      >
+                        <div className="text-sm text-secondary-900">ID: {opt.id} • {opt.name}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {selectedCompany && (
+                <div className="text-xs text-secondary-600 mt-1">Selecionada: ID {selectedCompany.id} • {selectedCompany.name}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Conta */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={accountQuery}
+                onChange={(e) => {
+                  setAccountQuery(e.target.value);
+                  setSelectedAccount(null);
+                  setAccountSelectedQuery('');
+                }}
+                onFocus={() => {
+                  setAccountSelectedQuery('');
+                  setShowAccountList(true);
+                }}
+                placeholder="Digite para buscar (banco, agência ou conta)..."
+                className="input-field"
+              />
+              {showAccountList && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {loadingAccounts ? (
+                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                  ) : accountOptions.length === 0 ? (
+                    <div className="p-3 text-sm text-secondary-500">
+                      {accountQuery.trim().length < 2 ? 'Digite pelo menos 2 caracteres' : 'Nenhuma conta encontrada'}
+                    </div>
+                  ) : (
+                    accountOptions.map((acc) => (
+                      <button
+                        type="button"
+                        key={acc.idConta}
+                        onClick={() => {
+                          const label = `${acc.fkBanco?.nomeBanco || 'Banco'} • Ag ${acc.agencia} • Cc ${acc.conta}-${acc.dvConta}`;
+                          setSelectedAccount(acc);
+                          setAccountQuery(label);
+                          setAccountSelectedQuery(label);
+                          setShowAccountList(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-secondary-50"
+                      >
+                        <div className="text-sm text-secondary-900">
+                          ID: {acc.idConta} • {acc.fkBanco?.nomeBanco || 'Banco'} • Ag {acc.agencia} • Cc {acc.conta}-{acc.dvConta}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {selectedAccount && (
+                <div className="mt-2 rounded-md border bg-secondary-50 p-3">
+                  <div className="text-sm font-semibold mb-1">Resumo da conta selecionada</div>
+                  <div className="text-sm text-secondary-900">ID: {selectedAccount.idConta}</div>
+                  <div className="text-sm text-secondary-900">Banco: {selectedAccount.fkBanco?.nomeBanco ?? '-'}</div>
+                  <div className="text-sm text-secondary-900">Agência: {selectedAccount.agencia} • Conta: {selectedAccount.conta}-{selectedAccount.dvConta}</div>
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+              )}
+              {selectedAccount && (
+                <div className="text-xs text-secondary-600 mt-1">Selecionada: ID {selectedAccount.idConta}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Campos principais */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Descrição *</label>
+              <input
+                type="text"
+                value={form.descricaoReceber}
+                onChange={(e) => setForm({ ...form, descricaoReceber: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Forma de Pagamento *</label>
+              <select
+                value={form.formaPagamento}
+                onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}
+                className="input-field"
+              >
+                <option value="">Selecione</option>
+                <option value="DINHEIRO">Dinheiro</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                <option value="TRANSFERENCIA_BANCARIA">Transferência Bancária</option>
+                <option value="PIX">PIX</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Emissão *</label>
+              <input
+                type="date"
+                value={form.dataEmissao}
+                onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Vencimento *</label>
+              <input
+                type="date"
+                value={form.dataVencimento}
+                onChange={(e) => setForm({ ...form, dataVencimento: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Recebimento</label>
+              <input
+                type="date"
+                value={form.dataRec}
+                onChange={(e) => setForm({ ...form, dataRec: e.target.value })}
+                className="input-field"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Valor *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={form.valorReceber}
+                onChange={(e) => setForm({ ...form, valorReceber: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Usuário *</label>
+              <input
+                type="text"
+                value={form.usuario}
+                onChange={(e) => setForm({ ...form, usuario: e.target.value })}
+                className="input-field"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="px-4 py-2 border rounded-md" onClick={onClose} disabled={submitting}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={submitting}
+              onClick={submitCreate}
+            >
+              {submitting ? 'Criando...' : 'Criar Conta a Receber'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ---------------- Fim do Modal de Criação ----------------
 
 export default Receivables;

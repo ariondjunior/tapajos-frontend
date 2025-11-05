@@ -211,291 +211,400 @@ const ViewModal: React.FC<ViewModalProps> = ({ item, onClose, onEdit }) => {
   );
 };
 
-// Modal de criação/edição
+// Modal de criação/edição no estilo do modal de Conta a Receber
 interface EditModalProps {
+  open: boolean;
   item: PayableItem | null;
   onClose: () => void;
   onSave: () => void;
-  suppliers: Array<{ id: number; name: string }>;
-  accounts: Array<{ id: number; name: string }>;
 }
 
-const EditModal: React.FC<EditModalProps> = ({ item, onClose, onSave, suppliers, accounts }) => {
-  const [formData, setFormData] = useState({
-    description: '',
-    amount: 0,
-    dueDate: '',
-    issueDate: '',
-    paymentDate: '',
-    supplierId: 0,
-    accountId: 0,
-    user: 'system',
+const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fornecedor (autocomplete)
+  const [supplierQuery, setSupplierQuery] = useState('');
+  const [supplierOptions, setSupplierOptions] = useState<Array<{ id: number; name: string }>>([]);
+  const [selectedSupplier, setSelectedSupplier] = useState<{ id: number; name: string } | null>(null);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [showSupplierList, setShowSupplierList] = useState(false);
+  const [supplierSelectedQuery, setSupplierSelectedQuery] = useState('');
+
+  // Conta (autocomplete)
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountOptions, setAccountOptions] = useState<Array<BankAccount>>([]);
+  const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [showAccountList, setShowAccountList] = useState(false);
+  const [accountSelectedQuery, setAccountSelectedQuery] = useState('');
+
+  // Form
+  const [form, setForm] = useState({
+    descricaoPagar: '',
+    valorPagar: '',
+    formaPagamento: '',
+    usuario: '',
+    dataEmissao: '',
+    dataVencimento: '',
+    dataPag: '',
   });
 
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
+  const dateToInput = (d?: Date | null) => {
+    if (!d) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const inputToDateTime = (s: string) => (s ? `${s}T12:00:00` : null);
+  const getEmpresaId = () => (selectedSupplier?.id ?? item?.supplierId ?? null);
+  const getContaId = () => (selectedAccount?.idConta ?? item?.accountId ?? null);
 
   useEffect(() => {
+    if (!open) return;
+
+    // Preenche formulário quando editar
     if (item) {
-      // Tentar extrair IDs das informações do item
-      // Você pode precisar ajustar isso dependendo de como os dados vêm da API
-      setFormData({
-        description: item.description,
-        amount: item.amount,
-        dueDate: item.dueDate.toISOString().split('T')[0],
-        issueDate: item.issueDate.toISOString().split('T')[0],
-        paymentDate: item.paymentDate ? item.paymentDate.toISOString().split('T')[0] : '',
-        supplierId: 0, // Será preenchido com os dados completos da API
-        accountId: 0, // Será preenchido com os dados completos da API
-        user: item.user,
+      setForm({
+        descricaoPagar: item.description || '',
+        valorPagar: String(item.amount ?? ''),
+        formaPagamento: '',
+        usuario: item.user || '',
+        dataEmissao: dateToInput(item.issueDate),
+        dataVencimento: dateToInput(item.dueDate),
+        dataPag: item.paymentDate ? dateToInput(item.paymentDate) : '',
       });
-    }
-  }, [item]);
 
-  const validate = () => {
-    const newErrors: Record<string, string> = {};
+      setSelectedSupplier(item.supplierId ? { id: item.supplierId, name: item.supplierName } : null);
+      setSupplierQuery(item.supplierName || '');
+      setSupplierOptions([]);
+      setShowSupplierList(false);
 
-    if (!formData.description.trim()) {
-      newErrors.description = 'Descrição é obrigatória';
-    }
-    if (formData.amount <= 0) {
-      newErrors.amount = 'Valor deve ser maior que zero';
-    }
-    if (!formData.dueDate) {
-      newErrors.dueDate = 'Data de vencimento é obrigatória';
-    }
-    if (!formData.issueDate) {
-      newErrors.issueDate = 'Data de emissão é obrigatória';
-    }
-    if (formData.supplierId === 0) {
-      newErrors.supplierId = 'Selecione um fornecedor';
-    }
-    if (formData.accountId === 0) {
-      newErrors.accountId = 'Selecione uma conta';
+      setSelectedAccount(
+        item.accountId
+          ? {
+              idConta: item.accountId,
+              agencia: (item.accountInfo.split('Ag ')[1] || '').split(' ')[0] || '',
+              conta: (item.accountInfo.split('Cc ')[1] || '').split('-')[0] || '',
+              dvConta: (item.accountInfo.split('-')[1] || '').trim(),
+              fkBanco: { nomeBanco: item.bankName },
+            }
+          : null
+      );
+      setAccountQuery(item.bankName ? `${item.bankName} • ${item.accountInfo}` : '');
+      setAccountOptions([]);
+      setShowAccountList(false);
+    } else {
+      // reset form for creation
+      setForm({
+        descricaoPagar: '',
+        valorPagar: '',
+        formaPagamento: '',
+        usuario: '',
+        dataEmissao: '',
+        dataVencimento: '',
+        dataPag: '',
+      });
+      setSelectedSupplier(null);
+      setSupplierQuery('');
+      setSupplierOptions([]);
+      setShowSupplierList(false);
+
+      setSelectedAccount(null);
+      setAccountQuery('');
+      setAccountOptions([]);
+      setShowAccountList(false);
     }
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+    setError(null);
+  }, [open, item]);
 
-  const formatDateTimeForBackend = (dateString: string): string | null => {
-    if (!dateString) return null;
-    return `${dateString}T12:00:00`;
-  };
+  // Busca fornecedores (/empresa?q=)
+  useEffect(() => {
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!open || !showSupplierList) return;
+      const q = supplierQuery.trim();
+      if (supplierSelectedQuery && supplierSelectedQuery === q) return;
+      if (q.length < 2) {
+        if (mounted) setSupplierOptions([]);
+        return;
+      }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+      controller = new AbortController();
+      setLoadingSuppliers(true);
 
-    if (!validate()) {
-      return;
-    }
+      api
+        .get('/empresa', { params: { q }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const data = res.data?.content || res.data || [];
+          const list = data
+            .map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia ?? e.razaoSocial ?? e.nome }))
+            .filter((e: any) => e.id && e.name);
+          setSupplierOptions(list);
+          setShowSupplierList(true);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setSupplierOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingSuppliers(false);
+        });
+    }, 300);
 
-    setSubmitting(true);
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [open, supplierQuery, supplierSelectedQuery, showSupplierList]);
 
-    // Payload completo tanto para POST quanto para PUT
+  // Busca contas (/conta?q=)
+  useEffect(() => {
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!open || !showAccountList) return;
+      const q = accountQuery.trim();
+      if (accountSelectedQuery && accountSelectedQuery === q) return;
+      if (q.length < 2) {
+        if (mounted) setAccountOptions([]);
+        return;
+      }
+
+      controller = new AbortController();
+      setLoadingAccounts(true);
+
+      api
+        .get('/conta', { params: { q, page: 0, size: 20 }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const data = res.data?.content || res.data || [];
+          const list: BankAccount[] = data
+            .map((c: any) => ({
+              idConta: c.idConta ?? c.id,
+              agencia: String(c.agencia ?? ''),
+              conta: String(c.conta ?? ''),
+              dvConta: c.dvConta ?? '',
+              fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
+            }))
+            .filter((c: BankAccount) => !!c.idConta);
+          setAccountOptions(list);
+          setShowAccountList(true);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setAccountOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingAccounts(false);
+        });
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [open, accountQuery, accountSelectedQuery, showAccountList]);
+
+  const submit = async () => {
+    const empresaId = getEmpresaId();
+    const contaId = getContaId();
+
+    // Validações mínimas
+    if (!empresaId) return setError('Selecione o fornecedor (empresa)');
+    if (!contaId) return setError('Selecione a conta bancária');
+    if (!form.descricaoPagar.trim()) return setError('Informe a descrição');
+    if (!form.formaPagamento) return setError('Informe a forma de pagamento');
+    if (!form.dataEmissao) return setError('Informe a data de emissão');
+    if (!form.dataVencimento) return setError('Informe a data de vencimento');
+    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!form.valorPagar || Number(form.valorPagar) <= 0) return setError('Informe um valor válido');
+
     const payload = {
-      descricaoPagar: formData.description,
-      valorPagar: formData.amount,
-      dataVencimento: formatDateTimeForBackend(formData.dueDate),
-      dataEmissao: formatDateTimeForBackend(formData.issueDate),
-      dataPag: formatDateTimeForBackend(formData.paymentDate),
-      usuario: formData.user,
-      empresa: { idEmpresa: formData.supplierId },
-      conta: { idConta: formData.accountId }
+      ...(item ? { idContaPagar: Number(item.id) } : {}),
+      valorPagar: Number(form.valorPagar),
+      dataVencimento: inputToDateTime(form.dataVencimento),
+      formaPagamento: form.formaPagamento,
+      dataEmissao: inputToDateTime(form.dataEmissao),
+      dataPag: form.dataPag ? inputToDateTime(form.dataPag) : null,
+      descricaoPagar: form.descricaoPagar,
+      usuario: form.usuario,
+      empresa: { idEmpresa: Number(empresaId) },
+      conta: { idConta: Number(contaId) },
     };
 
     try {
+      setSubmitting(true);
+      setError(null);
       if (item) {
-        // PUT - Atualizar
-        await api.put(`/pagar/${item.id}`, payload);
+        await api.put(`/pagar/${Number(item.id)}`, payload);
         alert('Conta a pagar atualizada com sucesso!');
       } else {
-        // POST - Criar
         await api.post('/pagar', payload);
         alert('Conta a pagar criada com sucesso!');
       }
       onSave();
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      if (axios.isAxiosError(error)) {
-        const errorMessage = error.response?.data?.message || error.response?.data || 'Erro ao salvar conta a pagar';
-        console.error('Resposta do servidor:', error.response?.data);
-        alert(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
-      } else {
-        alert('Erro ao salvar conta a pagar');
-      }
+    } catch (err: any) {
+      console.error('Erro no salvar /pagar:', err?.response || err);
+      const data = err?.response?.data;
+      setError(typeof data === 'string' ? data : data?.message || 'Falha ao salvar conta a pagar');
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (!open) return null;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-6 border-b border-secondary-200">
-          <h2 className="text-xl font-semibold text-secondary-900">
-            {item ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-secondary-400 hover:text-secondary-600"
-          >
-            <X className="h-6 w-6" />
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-lg font-semibold">{item ? `Editar Conta a Pagar #${item.id}` : 'Criar Nova Conta a Pagar'}</h2>
+          <button onClick={onClose} className="text-secondary-500 hover:text-secondary-700">
+            <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form className="p-6 space-y-4" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+          {error && (
+            <div className="px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>
+          )}
+
+          {/* Fornecedor */}
           <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-2">
-              Descrição *
-            </label>
-            <input
-              type="text"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className={`input-field ${errors.description ? 'border-red-500' : ''}`}
-              disabled={submitting}
-            />
-            {errors.description && (
-              <p className="text-red-500 text-xs mt-1">{errors.description}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-2">
-              Fornecedor *
-            </label>
-            <select
-              value={formData.supplierId}
-              onChange={(e) => setFormData({ ...formData, supplierId: Number(e.target.value) })}
-              className={`input-field ${errors.supplierId ? 'border-red-500' : ''}`}
-              disabled={submitting}
-            >
-              <option value={0}>Selecione um fornecedor</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
-            {errors.supplierId && (
-              <p className="text-red-500 text-xs mt-1">{errors.supplierId}</p>
-            )}
-            {item && (
-              <p className="text-xs text-secondary-500 mt-1">
-                Fornecedor atual não pode ser alterado. Selecione o mesmo fornecedor.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-secondary-700 mb-2">
-              Conta Bancária *
-            </label>
-            <select
-              value={formData.accountId}
-              onChange={(e) => setFormData({ ...formData, accountId: Number(e.target.value) })}
-              className={`input-field ${errors.accountId ? 'border-red-500' : ''}`}
-              disabled={submitting}
-            >
-              <option value={0}>Selecione uma conta</option>
-              {accounts.map(a => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-            {errors.accountId && (
-              <p className="text-red-500 text-xs mt-1">{errors.accountId}</p>
-            )}
-            {item && (
-              <p className="text-xs text-secondary-500 mt-1">
-                Conta bancária atual não pode ser alterada. Selecione a mesma conta.
-              </p>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Valor *
-              </label>
+            <label className="block text-sm font-medium mb-1">Fornecedor (Empresa) *</label>
+            <div className="relative">
               <input
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-                className={`input-field ${errors.amount ? 'border-red-500' : ''}`}
-                disabled={submitting}
-              />
-              {errors.amount && (
-                <p className="text-red-500 text-xs mt-1">{errors.amount}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Data de Vencimento *
-              </label>
-              <input
-                type="date"
-                value={formData.dueDate}
-                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                className={`input-field ${errors.dueDate ? 'border-red-500' : ''}`}
-                disabled={submitting}
-              />
-              {errors.dueDate && (
-                <p className="text-red-500 text-xs mt-1">{errors.dueDate}</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Data de Emissão *
-              </label>
-              <input
-                type="date"
-                value={formData.issueDate}
-                onChange={(e) => setFormData({ ...formData, issueDate: e.target.value })}
-                className={`input-field ${errors.issueDate ? 'border-red-500' : ''}`}
-                disabled={submitting}
-              />
-              {errors.issueDate && (
-                <p className="text-red-500 text-xs mt-1">{errors.issueDate}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-secondary-700 mb-2">
-                Data de Pagamento
-              </label>
-              <input
-                type="date"
-                value={formData.paymentDate}
-                onChange={(e) => setFormData({ ...formData, paymentDate: e.target.value })}
+                type="text"
+                value={supplierQuery}
+                onChange={(e) => { setSupplierQuery(e.target.value); setSelectedSupplier(null); setSupplierSelectedQuery(''); }}
+                onFocus={() => { setSupplierSelectedQuery(''); setShowSupplierList(true); }}
+                placeholder="Digite para buscar o fornecedor..."
                 className="input-field"
-                disabled={submitting}
               />
-              <p className="text-xs text-secondary-500 mt-1">
-                Deixe vazio se ainda não foi pago
-              </p>
+              {showSupplierList && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {loadingSuppliers ? (
+                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                  ) : supplierQuery.trim().length < 2 ? (
+                    <div className="p-3 text-sm text-secondary-500">Digite pelo menos 2 caracteres</div>
+                  ) : supplierOptions.length === 0 ? (
+                    <div className="p-3 text-sm text-secondary-500">Nenhum fornecedor encontrado</div>
+                  ) : (
+                    supplierOptions.map((opt) => (
+                      <button key={opt.id} type="button" className="w-full text-left px-3 py-2 hover:bg-secondary-50" onClick={() => { setSelectedSupplier(opt); setSupplierQuery(opt.name); setSupplierSelectedQuery(opt.name); setShowSupplierList(false); }}>
+                        <div className="text-sm text-secondary-900">ID: {opt.id} • {opt.name}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {selectedSupplier && (
+                <div className="text-xs text-secondary-600 mt-1">Selecionado: ID {selectedSupplier.id} • {selectedSupplier.name}</div>
+              )}
             </div>
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-secondary-700 bg-white border border-secondary-300 rounded-md hover:bg-secondary-50"
-              disabled={submitting}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={submitting}
-            >
-              {submitting ? 'Salvando...' : (item ? 'Atualizar' : 'Criar')}
-            </button>
+          {/* Conta */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={accountQuery}
+                onChange={(e) => { setAccountQuery(e.target.value); setSelectedAccount(null); setAccountSelectedQuery(''); }}
+                onFocus={() => { setAccountSelectedQuery(''); setShowAccountList(true); }}
+                placeholder="Digite para buscar (banco, agência ou conta)..."
+                className="input-field"
+              />
+              {showAccountList && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {loadingAccounts ? (
+                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                  ) : accountOptions.length === 0 ? (
+                    <div className="p-3 text-sm text-secondary-500">{accountQuery.trim().length < 2 ? 'Digite pelo menos 2 caracteres' : 'Nenhuma conta encontrada'}</div>
+                  ) : (
+                    accountOptions.map((acc) => (
+                      <button key={acc.idConta} type="button" className="w-full text-left px-3 py-2 hover:bg-secondary-50" onClick={() => { const label = `${acc.fkBanco?.nomeBanco || 'Banco'} • Ag ${acc.agencia} • Cc ${acc.conta}-${acc.dvConta}`; setSelectedAccount(acc); setAccountQuery(label); setAccountSelectedQuery(label); setShowAccountList(false); }}>
+                        <div className="text-sm text-secondary-900">ID: {acc.idConta} • {acc.fkBanco?.nomeBanco || 'Banco'} • Ag {acc.agencia} • Cc {acc.conta}-{acc.dvConta}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {selectedAccount && (
+                <div className="mt-2 rounded-md border bg-secondary-50 p-3">
+                  <div className="text-sm font-semibold mb-1">Resumo da conta selecionada</div>
+                  <div className="text-sm text-secondary-900">ID: {selectedAccount.idConta}</div>
+                  <div className="text-sm text-secondary-900">Banco: {selectedAccount.fkBanco?.nomeBanco ?? '-'}</div>
+                  <div className="text-sm text-secondary-900">Agência: {selectedAccount.agencia} • Conta: {selectedAccount.conta}-{selectedAccount.dvConta}</div>
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>Limpar</button>
+                  </div>
+                </div>
+              )}
+              {selectedAccount && (
+                <div className="text-xs text-secondary-600 mt-1">Selecionada: ID {selectedAccount.idConta}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Campos principais */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Descrição</label>
+              <input type="text" value={form.descricaoPagar} onChange={(e) => setForm({ ...form, descricaoPagar: e.target.value })} className="input-field" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Forma de Pagamento *</label>
+              <select value={form.formaPagamento} onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })} className="input-field">
+                <option value="">Selecione</option>
+                <option value="DINHEIRO">Dinheiro</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                <option value="TRANSFERENCIA_BANCARIA">Transferência Bancária</option>
+                <option value="PIX">PIX</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Emissão *</label>
+              <input type="date" value={form.dataEmissao} onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })} className="input-field" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Vencimento *</label>
+              <input type="date" value={form.dataVencimento} onChange={(e) => setForm({ ...form, dataVencimento: e.target.value })} className="input-field" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Pagamento</label>
+              <input type="date" value={form.dataPag} onChange={(e) => setForm({ ...form, dataPag: e.target.value })} className="input-field" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Valor *</label>
+              <input type="number" step="0.01" value={form.valorPagar} onChange={(e) => setForm({ ...form, valorPagar: e.target.value })} className="input-field" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Usuário *</label>
+              <input type="text" value={form.usuario} onChange={(e) => setForm({ ...form, usuario: e.target.value })} className="input-field" />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="px-4 py-2 border rounded-md" onClick={onClose} disabled={submitting}>Cancelar</button>
+            <button type="button" className="btn-primary" disabled={submitting} onClick={submit}>{submitting ? 'Salvando...' : (item ? 'Salvar alterações' : 'Criar Conta a Pagar')}</button>
           </div>
         </form>
       </div>
@@ -1112,9 +1221,8 @@ const Payables: React.FC = () => {
       {/* Modal de Edição/Criação */}
       {showEditModal && (
         <EditModal
+          open={showEditModal}
           item={selectedItem}
-          suppliers={suppliers}
-          accounts={accounts}
           onClose={() => {
             setShowEditModal(false);
             setSelectedItem(null);
