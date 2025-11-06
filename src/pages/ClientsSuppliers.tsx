@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { userService } from '../services';
-import { ClientSupplier } from '../types';
+import { ClientSupplier, User } from '../types';
 import api from '../services/api';
 import axios from 'axios';
 
@@ -62,6 +62,7 @@ const ClientsSuppliers: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ClientSupplier | null>(null);
   const [loading, setLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   
   // Estados de paginação (pageSize fixo em 10)
   const [currentPage, setCurrentPage] = useState(0);
@@ -69,7 +70,19 @@ const ClientsSuppliers: React.FC = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  const currentUser = userService.getCurrentUser();
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const u = await userService.getCurrentUser();
+        if (mounted) setCurrentUser(u);
+      } catch (err) {
+        // já logado no serviço; não propagar erro para não quebrar render
+        console.error('Erro ao obter usuário atual:', err);
+      }
+    })();
+    return () => { mounted = false };
+  }, []);
 
   // remove o carregamento automático
   // useEffect(() => {
@@ -483,6 +496,7 @@ const ClientsSuppliers: React.FC = () => {
       {showModal && (
         <ClientSupplierModal
           item={editingItem}
+          currentUser={currentUser}
           onClose={() => setShowModal(false)}
           onSave={() => {
             setShowModal(false);
@@ -499,6 +513,7 @@ interface ClientSupplierModalProps {
   item: ClientSupplier | null;
   onClose: () => void;
   onSave: () => void;
+  currentUser?: User | null;
 }
 
 const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose, onSave }) => {
@@ -521,7 +536,9 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
     isActive: true,
   });
 
-  const currentUser = userService.getCurrentUser();
+  // currentUser is passed from parent to avoid calling service synchronously here
+  // fallback: null
+  // const currentUser = userService.getCurrentUser();
 
   useEffect(() => {
     if (item) {

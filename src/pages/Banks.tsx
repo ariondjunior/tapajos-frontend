@@ -31,6 +31,9 @@ const Banks: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingBank, setEditingBank] = useState<Bank | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showCreateBankModal, setShowCreateBankModal] = useState(false);
+  const [lastCreatedBank, setLastCreatedBank] = useState<{ id: number; nome: string } | null>(null);
+  const [bankToSelect, setBankToSelect] = useState<{ id: number; nome: string } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -54,15 +57,16 @@ const Banks: React.FC = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      // carrega todas as páginas de /contas e consolida
-      const first = await api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: 0 } });
+      // carrega todas as páginas de /conta (endpoint do backend) e consolida
+      const PAGE_SIZE = 100; // paginar em blocos para evitar requests gigantes
+      const first = await api.get<PaginatedResponse<ContaApi>>('/conta', { params: { page: 0, size: PAGE_SIZE } });
       const totalPages = Number(first.data.totalPages ?? 1);
       let all = first.data.content ?? [];
 
       if (totalPages > 1) {
         const promises = [];
         for (let p = 1; p < totalPages; p++) {
-          promises.push(api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: p } }));
+          promises.push(api.get<PaginatedResponse<ContaApi>>('/conta', { params: { page: p, size: PAGE_SIZE } }));
         }
         const pages = await Promise.all(promises);
         pages.forEach(res => {
@@ -96,6 +100,13 @@ const Banks: React.FC = () => {
   };
 
   const handleCreate = () => {
+    // if a bank was just created, preselect it in the account modal
+    if (lastCreatedBank) {
+      setBankToSelect(lastCreatedBank);
+      setLastCreatedBank(null);
+    } else {
+      setBankToSelect(null);
+    }
     setEditingBank(null);
     setShowModal(true);
   };
@@ -142,10 +153,19 @@ const Banks: React.FC = () => {
           <h1 className="text-2xl font-bold text-secondary-900">Bancos</h1>
           <p className="text-secondary-600">Contas bancárias cadastradas (Banco + Conta)</p>
         </div>
-        <button onClick={handleCreate} className="btn-primary flex items-center">
-          <Plus className="h-5 w-5 mr-2" />
-          Novo Banco
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={handleCreate} className="btn-primary flex items-center">
+            <Plus className="h-5 w-5 mr-2" />
+            Nova Conta
+          </button>
+          <button
+            onClick={() => setShowCreateBankModal(true)}
+            className="btn-secondary flex items-center"
+            title="Criar novo banco"
+          >
+            Novo Banco
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -179,7 +199,7 @@ const Banks: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="font-semibold text-secondary-900">{bank.name}</h3>
-                    <p className="text-sm text-secondary-500">Código: {bank.code}</p>
+                    <p className="text-sm text-secondary-500">ID: {bank.id} • Código: {bank.code}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-1">
@@ -229,10 +249,22 @@ const Banks: React.FC = () => {
       {showModal && (
         <BankModal
           bank={editingBank}
-          onClose={() => setShowModal(false)}
+          initialSelectedBank={bankToSelect}
+          onClose={() => { setShowModal(false); setBankToSelect(null); }}
           onSave={() => {
             setShowModal(false);
+            setBankToSelect(null);
             loadData();
+          }}
+        />
+      )}
+
+      {showCreateBankModal && (
+        <CreateBankModal
+          onClose={() => setShowCreateBankModal(false)}
+          onCreated={(b) => {
+            setLastCreatedBank(b);
+            setShowCreateBankModal(false);
           }}
         />
       )}
@@ -245,59 +277,114 @@ interface BankModalProps {
   bank: Bank | null;
   onClose: () => void;
   onSave: () => void;
+  initialSelectedBank?: { id: number; nome: string } | null;
 }
 
-const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave }) => {
+const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSelectedBank }) => {
   const [formData, setFormData] = useState({
-    name: '',
-    code: '',
     accountNumber: '',
-    agency: '',
+    agencia: '',
+    conta: '',
+    dvConta: '',
     currentBalance: 0
   });
 
+  const [bankQuery, setBankQuery] = useState('');
+  const [bankOptions, setBankOptions] = useState<Array<{ id: number; nome: string }>>([]);
+  const [selectedBank, setSelectedBank] = useState<{ id: number; nome: string } | null>(null);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+  const [showBankList, setShowBankList] = useState(false);
+  const [bankSelectedQuery, setBankSelectedQuery] = useState('');
+
   useEffect(() => {
     if (bank) {
+      // bank.code was stored as idBanco string in mapping
       setFormData({
-        name: bank.name,
-        code: bank.code,
         accountNumber: bank.accountNumber,
-        agency: bank.agency,
+        agencia: bank.agency,
+        conta: (bank.accountNumber || '').split('-')[0] || '',
+        dvConta: (bank.accountNumber || '').split('-')[1] || '',
         currentBalance: bank.currentBalance
       });
+      setSelectedBank({ id: Number(bank.code || 0), nome: bank.name });
     }
-  }, [bank]);
+    else if (initialSelectedBank) {
+      setSelectedBank(initialSelectedBank);
+      setBankQuery(initialSelectedBank.nome);
+      setBankSelectedQuery(initialSelectedBank.nome);
+    }
+  }, [bank, initialSelectedBank]);
 
-  // helper para separar conta e DV (formato "12345-6")
-  const splitAccount = (accWithDv: string) => {
-    const [acc, dv] = String(accWithDv ?? '').split('-').map(s => s.trim());
-    return { conta: acc || '', dvConta: Number(dv) || 0 };
-  };
+  // autocomplete: busca bancos por q quando dropdown aberto
+  useEffect(() => {
+    let mounted = true;
+    let controller: AbortController | null = null;
+    const t = setTimeout(() => {
+      if (!showBankList) return;
+      const q = bankQuery.trim();
+      if (bankSelectedQuery && bankSelectedQuery === q) return;
+      if (q.length < 1) {
+        if (mounted) setBankOptions([]);
+        return;
+      }
+
+      controller = new AbortController();
+      setLoadingBanks(true);
+      api
+        .get('/banco', { params: { q, page: 0, size: 20 }, signal: controller.signal })
+        .then((res) => {
+          if (!mounted) return;
+          const items = res.data?.content || res.data || [];
+          const list = items.map((b: any) => ({ id: b.idBanco ?? b.id, nome: b.nomeBanco ?? b.nome }));
+          setBankOptions(list);
+        })
+        .catch(() => {
+          if (!mounted) return;
+          setBankOptions([]);
+        })
+        .finally(() => {
+          if (!mounted) return;
+          setLoadingBanks(false);
+        });
+    }, 300);
+
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+      if (controller) controller.abort();
+    };
+  }, [showBankList, bankQuery, bankSelectedQuery]);
+
+  // helper para separar conta e DV (formato separado agora)
+  const splitAccount = (conta: string, dv: string) => ({ conta: conta || '', dvConta: Number(dv) || 0 });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const { conta, dvConta } = splitAccount(formData.accountNumber);
+    if (!selectedBank) {
+      alert('Selecione um banco existente antes de criar a conta.');
+      return;
+    }
+    const { conta, dvConta } = splitAccount(formData.conta, formData.dvConta);
     const payload = {
-      agencia: formData.agency,
+      agencia: formData.agencia,
       conta,
       dvConta,
       saldo: Number(formData.currentBalance) || 0,
       tipoConta: 'CORRENTE',
       statusConta: 1,
       fkBanco: {
-        idBanco: Number(formData.code),
-        nomeBanco: formData.name
+        idBanco: Number(selectedBank.id)
       }
     };
 
     try {
       if (bank) {
         // atualiza a conta existente
-        await api.put(`/contas/${bank.id}`, payload);
+        await api.put(`/conta/${bank.id}`, payload);
       } else {
         // cria nova conta
-        await api.post('/contas', payload);
+        await api.post('/conta', payload);
       }
       onSave();
     } catch (error) {
@@ -315,66 +402,97 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave }) => {
           <form onSubmit={handleSubmit}>
             <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {bank ? 'Editar' : 'Novo'} Banco
+                {bank ? 'Editar' : 'Nova'} Conta Bancária
               </h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome do Banco *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Banco *</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={bankQuery || selectedBank?.nome || ''}
+                      onChange={(e) => {
+                        setBankQuery(e.target.value);
+                        setSelectedBank(null);
+                        setBankSelectedQuery('');
+                      }}
+                      onFocus={() => {
+                        setBankSelectedQuery('');
+                        setShowBankList(true);
+                      }}
+                      placeholder="Digite para buscar banco..."
+                      className="input-field"
+                      required
+                    />
+                    {showBankList && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                        {loadingBanks ? (
+                          <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                        ) : bankQuery.trim().length < 1 ? (
+                          <div className="p-3 text-sm text-secondary-500">Digite para procurar bancos</div>
+                        ) : bankOptions.length === 0 ? (
+                          <div className="p-3 text-sm text-secondary-500">Nenhum banco encontrado</div>
+                        ) : (
+                          bankOptions.map((b) => (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedBank(b);
+                                setBankQuery(b.nome);
+                                setBankSelectedQuery(b.nome);
+                                setShowBankList(false);
+                              }}
+                              className="w-full text-left px-3 py-2 hover:bg-secondary-50"
+                            >
+                              <div className="text-sm text-secondary-900">ID: {b.id} • {b.nome}</div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Agência *</label>
                   <input
                     type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    value={formData.agencia}
+                    onChange={(e) => setFormData({ ...formData, agencia: e.target.value })}
                     className="input-field"
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Código do Banco *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.code}
-                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    className="input-field"
-                    required
-                  />
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Número da Conta *</label>
+                    <input
+                      type="text"
+                      value={formData.conta}
+                      onChange={(e) => setFormData({ ...formData, conta: e.target.value })}
+                      className="input-field"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">DV *</label>
+                    <input
+                      type="text"
+                      value={formData.dvConta}
+                      onChange={(e) => setFormData({ ...formData, dvConta: e.target.value })}
+                      className="input-field"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Agência *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.agency}
-                    onChange={(e) => setFormData({ ...formData, agency: e.target.value })}
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Número da Conta *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.accountNumber}
-                    onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                    className="input-field"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Saldo Inicial
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Saldo Inicial</label>
                   <input
                     type="number"
                     step="0.01"
@@ -409,3 +527,67 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave }) => {
 };
 
 export default Banks;
+
+// Modal para criar um novo banco (separado do modal de conta)
+interface CreateBankModalProps {
+  onClose: () => void;
+  onCreated: (b: { id: number; nome: string }) => void;
+}
+
+const CreateBankModal: React.FC<CreateBankModalProps> = ({ onClose, onCreated }) => {
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    const nome = name.trim();
+    if (nome.length === 0) return;
+    setCreating(true);
+    try {
+      await api.post('/banco', { nomeBanco: nome });
+      // tentar localizar o banco criado
+      const res = await api.get('/banco', { params: { q: nome, page: 0, size: 10 } });
+      const items = res.data?.content || res.data || [];
+      const found = (items.map((b: any) => ({ id: b.idBanco ?? b.id, nome: b.nomeBanco ?? b.nome })) || [])[0];
+      if (found) {
+        onCreated(found);
+      } else {
+        onCreated({ id: 0, nome });
+      }
+    } catch (err) {
+      console.error('Erro ao criar banco:', err);
+      alert('Erro ao criar banco');
+    } finally {
+      setCreating(false);
+      onClose();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto">
+      <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose}></div>
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full">
+          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Novo Banco</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nome do Banco *</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="input-field"
+                  placeholder="Nome do banco"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+            <button onClick={handleCreate} disabled={creating || name.trim().length === 0} className="btn-primary w-full sm:w-auto sm:ml-3">Criar</button>
+            <button onClick={onClose} className="btn-secondary w-full sm:w-auto mt-3 sm:mt-0">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

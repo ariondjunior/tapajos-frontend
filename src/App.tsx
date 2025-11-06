@@ -7,7 +7,6 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import ClientsSuppliers from './pages/ClientsSuppliers';
 import Banks from './pages/Banks';
-import BankTransactions from './pages/BankTransactions';
 import PayablesReceivables from './pages/PayablesReceivables';
 import Payables from './pages/Payables';
 import Receivables from './pages/Receivables';
@@ -91,17 +90,6 @@ const AppContent: React.FC = () => {
                     Contas a Receber
                   </Link>
                   <Link
-                    to="/entries"
-                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                      location.pathname === '/entries' 
-                        ? 'bg-primary-50 text-primary-700' 
-                        : 'text-secondary-700 hover:bg-secondary-50'
-                    }`}
-                  >
-                    <TrendingUp className="h-5 w-5 mr-3" />
-                    Lançamentos
-                  </Link>
-                  <Link
                     to="/reports"
                     className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                       location.pathname === '/reports' 
@@ -148,7 +136,7 @@ const AppContent: React.FC = () => {
                   <Route path="/banks" element={<Banks />} />
                   <Route path="/payables" element={<Payables />} />
                   <Route path="/receivables" element={<Receivables />} />
-                  <Route path="/entries" element={<BankTransactions />} />
+                  {/* Removed /entries route: BankTransactions moved into Reports */}
                   <Route path="/reports" element={<Reports />} />
                 </Routes>
               </div>

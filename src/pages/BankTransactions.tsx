@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Search, ArrowUpRight, ArrowDownRight, Calendar } from 'lucide-react';
-import { bankTransactionService, bankService, userService } from '../services';
+// import { bankTransactionService, bankService, userService } from '../services';
 import { BankTransaction, Bank, User } from '../types';
 
 const BankTransactions: React.FC = () => {

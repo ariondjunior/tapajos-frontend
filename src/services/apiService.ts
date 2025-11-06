@@ -11,7 +11,8 @@ import {
 } from '../types';
 
 // Configuração base do axios
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// Prefer REACT_APP_API_URL (set in .env). Fallback to backend default port 8080 used by the API server.
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -309,6 +310,68 @@ export const reportService = {
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error);
       throw new Error('Erro ao carregar dados');
+    }
+  }
+};
+
+// Movimentações / Extratos
+export const movimentacaoService = {
+  async getExtratoDiario(): Promise<any[]> {
+    try {
+      const url = '/movimentacao/extrato/diario';
+      // debug: log full request url
+      // eslint-disable-next-line no-console
+      console.debug('[movimentacaoService] GET', (api.defaults.baseURL || '') + url);
+      const response = await api.get(url);
+      return response.data;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Erro ao buscar extrato diário:', error);
+      const err: any = error;
+      // if axios error, log request url/response for debugging
+      // eslint-disable-next-line no-console
+      if (err?.config) console.debug('[movimentacaoService] request config', err.config);
+      // eslint-disable-next-line no-console
+      if (err?.response) console.debug('[movimentacaoService] response', err.response.status, err.response.data);
+      throw new Error('Erro ao carregar extrato diário');
+    }
+  },
+
+  async getExtratoPeriodo(dataInicio: string, dataFim: string): Promise<any[]> {
+    try {
+      const url = '/movimentacao/extrato/periodo';
+      // debug: log full request url and params
+      // eslint-disable-next-line no-console
+      console.debug('[movimentacaoService] GET', (api.defaults.baseURL || '') + url, { dataInicio, dataFim });
+      const response = await api.get(url, { params: { dataInicio, dataFim } });
+      return response.data;
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Erro ao buscar extrato por período:', error);
+      const err: any = error;
+      // eslint-disable-next-line no-console
+      if (err?.config) console.debug('[movimentacaoService] request config', err.config);
+      // eslint-disable-next-line no-console
+      if (err?.response) console.debug('[movimentacaoService] response', err.response.status, err.response.data);
+      throw new Error('Erro ao carregar extrato por período');
+    }
+  }
+  ,
+
+  async getMovimentacoes(page: number = 0, pageSize: number = 100): Promise<any> {
+    try {
+      const url = '/movimentacao';
+      // eslint-disable-next-line no-console
+      console.debug('[movimentacaoService] GET', (api.defaults.baseURL || '') + url, { page, pageSize });
+      const response = await api.get(url, { params: { page, pageSize } });
+      return response.data;
+    } catch (error) {
+      const err: any = error;
+      // eslint-disable-next-line no-console
+      console.error('Erro ao buscar movimentações:', err);
+      // eslint-disable-next-line no-console
+      if (err?.response) console.debug('[movimentacaoService] response', err.response.status, err.response.data);
+      throw new Error('Erro ao carregar movimentações');
     }
   }
 };

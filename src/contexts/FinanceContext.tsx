@@ -90,7 +90,7 @@ export const FinanceProvider: React.FC<{children: ReactNode}> = ({children}) => 
     let cancelled = false
     ;(async () => {
       try {
-        const first = await api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: 0 } })
+  const first = await api.get<PaginatedResponse<ContaApi>>('/conta', { params: { page: 0 } })
         let all: ContaApi[] = first.data.content ?? []
         const totalPages = Number(first.data.totalPages ?? 1)
 
@@ -98,7 +98,7 @@ export const FinanceProvider: React.FC<{children: ReactNode}> = ({children}) => 
         if (totalPages > 1) {
           const promises = [];
           for (let p = 1; p < totalPages; p++) {
-            promises.push(api.get<PaginatedResponse<ContaApi>>('/contas', { params: { page: p } }))
+            promises.push(api.get<PaginatedResponse<ContaApi>>('/conta', { params: { page: p } }))
           }
           const pages = await Promise.all(promises)
           pages.forEach(res => {
@@ -108,9 +108,9 @@ export const FinanceProvider: React.FC<{children: ReactNode}> = ({children}) => 
 
         const mapped = all.map(mapContaToBank)
         if (!cancelled) setBanks(mapped)
-        console.log(`/contas: carregadas ${all.length} contas em ${totalPages} páginas`)
+  console.log(`/conta: carregadas ${all.length} contas em ${totalPages} páginas`)
       } catch (e) {
-        console.error('Falha ao carregar /contas:', e)
+  console.error('Falha ao carregar /conta:', e)
       }
     })()
     return () => { cancelled = true }
