@@ -54,6 +54,21 @@ type PaginatedResponse<T> = {
   last: boolean;
 };
 
+// Tipo local para conta bancária (compatível com dados retornados pela API)
+type BankAccount = {
+  idConta: number | string;
+  agencia?: string;
+  conta?: string;
+  saldo?: number;
+  tipoConta?: string;
+  statusConta?: number;
+  dvConta?: number | string;
+  fkBanco?: {
+    idBanco?: number | string;
+    nomeBanco?: string;
+  };
+};
+
 type PayableItem = {
   id: string;
   description: string;

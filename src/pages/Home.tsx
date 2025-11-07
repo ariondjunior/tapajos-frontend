@@ -34,7 +34,7 @@ export default function Home(){
       title: 'Novo Lançamento',
       description: 'Registrar transação',
       icon: 'M12 6v6m0 0v6m0-6h6m-6 0H6',
-      link: '/entries',
+      link: '/reports',
       color: 'purple'
     },
     {
@@ -136,7 +136,7 @@ export default function Home(){
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Lançamentos Recentes</h3>
-              <Link to="/entries" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <Link to="/reports" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                 Ver todos
               </Link>
             </div>
