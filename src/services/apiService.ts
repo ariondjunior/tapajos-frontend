@@ -10,8 +10,6 @@ import {
   DashboardData 
 } from '../types';
 
-// Configuração base do axios
-// Prefer REACT_APP_API_URL (set in .env). Fallback to backend default port 8080 used by the API server.
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8080';
 
 const api = axios.create({
@@ -19,7 +17,6 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Interceptor para adicionar token nas requisições
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -33,14 +30,12 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor para tratar respostas e erros
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado ou inválido
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -49,7 +44,6 @@ api.interceptors.response.use(
   }
 );
 
-// Serviços para Clientes/Fornecedores
 export const clientSupplierService = {
   async getAll(): Promise<ClientSupplier[]> {
     try {
@@ -101,7 +95,6 @@ export const clientSupplierService = {
   }
 };
 
-// Serviços para Bancos
 export const bankService = {
   async getAll(): Promise<Bank[]> {
     try {
@@ -154,7 +147,6 @@ export const bankService = {
   }
 };
 
-// Serviços para Transações Bancárias
 export const bankTransactionService = {
   async getAll(): Promise<BankTransaction[]> {
     try {
@@ -187,7 +179,6 @@ export const bankTransactionService = {
   }
 };
 
-// Serviços para Contas a Pagar/Receber
 export const payableReceivableService = {
   async getAll(): Promise<PayableReceivable[]> {
     try {
@@ -249,7 +240,6 @@ export const payableReceivableService = {
   }
 };
 
-// Serviços para Relatórios
 export const reportService = {
   async getCashFlowProjection(days: number = 30): Promise<CashFlowProjection[]> {
     try {
@@ -314,24 +304,17 @@ export const reportService = {
   }
 };
 
-// Movimentações / Extratos
 export const movimentacaoService = {
   async getExtratoDiario(): Promise<any[]> {
     try {
       const url = '/movimentacao/extrato/diario';
-      // debug: log full request url
-      // eslint-disable-next-line no-console
       console.debug('[movimentacaoService] GET', (api.defaults.baseURL || '') + url);
       const response = await api.get(url);
       return response.data;
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('Erro ao buscar extrato diário:', error);
       const err: any = error;
-      // if axios error, log request url/response for debugging
-      // eslint-disable-next-line no-console
       if (err?.config) console.debug('[movimentacaoService] request config', err.config);
-      // eslint-disable-next-line no-console
       if (err?.response) console.debug('[movimentacaoService] response', err.response.status, err.response.data);
       throw new Error('Erro ao carregar extrato diário');
     }
@@ -340,18 +323,13 @@ export const movimentacaoService = {
   async getExtratoPeriodo(dataInicio: string, dataFim: string): Promise<any[]> {
     try {
       const url = '/movimentacao/extrato/periodo';
-      // debug: log full request url and params
-      // eslint-disable-next-line no-console
       console.debug('[movimentacaoService] GET', (api.defaults.baseURL || '') + url, { dataInicio, dataFim });
       const response = await api.get(url, { params: { dataInicio, dataFim } });
       return response.data;
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('Erro ao buscar extrato por período:', error);
       const err: any = error;
-      // eslint-disable-next-line no-console
       if (err?.config) console.debug('[movimentacaoService] request config', err.config);
-      // eslint-disable-next-line no-console
       if (err?.response) console.debug('[movimentacaoService] response', err.response.status, err.response.data);
       throw new Error('Erro ao carregar extrato por período');
     }
@@ -361,22 +339,18 @@ export const movimentacaoService = {
   async getMovimentacoes(page: number = 0, pageSize: number = 100): Promise<any> {
     try {
       const url = '/movimentacao';
-      // eslint-disable-next-line no-console
       console.debug('[movimentacaoService] GET', (api.defaults.baseURL || '') + url, { page, pageSize });
       const response = await api.get(url, { params: { page, pageSize } });
       return response.data;
     } catch (error) {
       const err: any = error;
-      // eslint-disable-next-line no-console
       console.error('Erro ao buscar movimentações:', err);
-      // eslint-disable-next-line no-console
       if (err?.response) console.debug('[movimentacaoService] response', err.response.status, err.response.data);
       throw new Error('Erro ao carregar movimentações');
     }
   }
 };
 
-// Serviços para Usuários
 export const userService = {
   async getCurrentUser(): Promise<User> {
     try {

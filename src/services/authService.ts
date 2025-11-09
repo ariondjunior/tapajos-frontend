@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { LoginCredentials, AuthResponse, User } from '../types';
 
-// Configuração base do axios
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
 const api = axios.create({
@@ -9,7 +8,6 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Interceptor para adicionar token nas requisições
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -23,14 +21,12 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor para tratar respostas e erros
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado ou inválido
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/login';
@@ -39,7 +35,6 @@ api.interceptors.response.use(
   }
 );
 
-// Mock de usuários para demonstração
 const mockUsers: User[] = [
   {
     id: '1',
@@ -61,13 +56,11 @@ const mockUsers: User[] = [
 
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
-    // Simular delay da API
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Verificar credenciais mockadas
     const user = mockUsers.find(u => 
       u.email === credentials.email && 
-      credentials.password === '123456' // Senha fixa para demonstração
+      credentials.password === '123456' 
     );
     
     if (!user) {
@@ -78,7 +71,6 @@ export const authService = {
       throw new Error('Usuário inativo');
     }
     
-    // Gerar token mockado
     const token = `mock_token_${user.id}_${Date.now()}`;
     const refreshToken = `mock_refresh_${user.id}_${Date.now()}`;
     
@@ -90,13 +82,11 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    // Simular delay da API
     await new Promise(resolve => setTimeout(resolve, 500));
     console.log('Logout realizado');
   },
 
   async refreshToken(): Promise<AuthResponse> {
-    // Simular delay da API
     await new Promise(resolve => setTimeout(resolve, 500));
     
     const refreshToken = localStorage.getItem('refreshToken');
@@ -104,8 +94,7 @@ export const authService = {
       throw new Error('Refresh token não encontrado');
     }
     
-    // Em uma implementação real, você validaria o refresh token
-    const user = mockUsers[0]; // Usar o primeiro usuário como exemplo
+    const user = mockUsers[0];
     const newToken = `mock_token_${user.id}_${Date.now()}`;
     const newRefreshToken = `mock_refresh_${user.id}_${Date.now()}`;
     
@@ -117,15 +106,12 @@ export const authService = {
   },
 
   async getCurrentUser(): Promise<User> {
-    // Simular delay da API
     await new Promise(resolve => setTimeout(resolve, 500));
     
     const token = localStorage.getItem('token');
     if (!token) {
       throw new Error('Token não encontrado');
     }
-    
-    // Em uma implementação real, você validaria o token
     return mockUsers[0]; // Retornar o primeiro usuário como exemplo
   },
 };

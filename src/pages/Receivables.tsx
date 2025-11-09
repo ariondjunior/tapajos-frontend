@@ -194,6 +194,11 @@ const Receivables: React.FC = () => {
     setShowEditModal(true);
   };
 
+  const handleCreate = () => {
+    setEditing(null);
+    setShowCreateModal(true);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm('Tem certeza que deseja excluir esta conta a receber?')) return;
     try {
@@ -259,7 +264,7 @@ const Receivables: React.FC = () => {
           <h1 className="text-2xl font-bold text-secondary-900">Contas a Receber</h1>
           <p className="text-secondary-600">Gerencie as duplicatas de clientes</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center">
+        <button onClick={handleCreate} className="btn-primary flex items-center">
           <Plus className="h-5 w-5 mr-2" />
           Nova Conta a Receber
         </button>
@@ -545,9 +550,12 @@ const Receivables: React.FC = () => {
         }}
       />
 
+      {/* Modal de criação */}
       <CreateReceivableModal
         open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false);
+        }}
         onSaved={() => {
           setShowCreateModal(false);
           // Recarrega a página atual após criar
@@ -557,496 +565,6 @@ const Receivables: React.FC = () => {
     </div>
   );
 };
-
-// ---------------- Modal de Edição ----------------
-const EditReceivableModal: React.FC<{
-  open: boolean;
-  item: ReceivableItem | null;
-  onClose: () => void;
-  onSaved: () => void;
-}> = ({ open, item, onClose, onSaved }) => {
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Empresa (autocomplete)
-  const [companyQuery, setCompanyQuery] = useState('');
-  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
-  const [showCompanyList, setShowCompanyList] = useState(false);
-  const [companySelectedQuery, setCompanySelectedQuery] = useState('');
-
-  // Conta (autocomplete com prévia)
-  const [accountQuery, setAccountQuery] = useState('');
-  const [accountOptions, setAccountOptions] = useState<BankAccount[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
-  const [loadingAccounts, setLoadingAccounts] = useState(false);
-  const [showAccountList, setShowAccountList] = useState(false);
-  const [accountSelectedQuery, setAccountSelectedQuery] = useState('');
-  
-
-  // Form
-  const [form, setForm] = useState({
-    descricaoReceber: '',
-    valorReceber: '',
-    formaPagamento: '',
-    usuario: '',
-    dataEmissao: '',
-    dataVencimento: '',
-    dataRec: '',
-  });
-
-  const dateToInput = (d?: Date | null) => {
-    if (!d) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  };
-
-  const inputToDateTime = (s: string) => (s ? `${s}T12:00:00` : null);
-  const getEmpresaId = () => (selectedCompany?.id ?? item?.clientId ?? null);
-  const getContaId = () => (selectedAccount?.idConta ?? item?.accountId ?? null);
-
-  // Função centralizada de submit do PUT
-  const submitEdit = async () => {
-    if (!item) return;
-
-    const empresaId = getEmpresaId();
-    const contaId = getContaId();
-
-    console.debug('[submitEdit] Iniciando update para id:', item.id);
-
-    // Validações mínimas (entidade exige @NotNull/@NotBlank e @ManyToOne(optional=false))
-    if (!empresaId) return setError('Selecione a empresa');
-    if (!contaId) return setError('Selecione a conta bancária');
-    if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
-    if (!form.formaPagamento) return setError('Informe a forma de pagamento');
-    if (!form.dataEmissao) return setError('Informe a data de emissão');
-    if (!form.dataVencimento) return setError('Informe a data de vencimento');
-    if (!form.usuario.trim()) return setError('Informe o usuário');
-    if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
-
-    // ✅ envia no formato da entidade (com id no path e no corpo)
-    const url = `/receber/${Number(item.id)}`;
-    const payload = {
-      idReceber: Number(item.id), // requerido pelo @Validated(UpdateReceber)
-      valorReceber: Number(form.valorReceber),
-      dataVencimento: inputToDateTime(form.dataVencimento),
-      dataEmissao: inputToDateTime(form.dataEmissao),
-      dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
-      descricaoReceber: form.descricaoReceber,
-      formaPagamento: form.formaPagamento,
-      usuario: form.usuario,
-      empresa: { idEmpresa: Number(empresaId) },
-      conta: { idConta: Number(contaId) },
-    };
-
-    try {
-      setSubmitting(true);
-      setError(null);
-      console.debug('PUT', url, payload);
-      await api.put(url, payload);
-      alert('Conta a receber atualizada com sucesso!');
-      onSaved();
-    } catch (err: any) {
-      console.error('Erro no PUT /receber:', err?.response || err);
-      const data = err?.response?.data;
-      setError(typeof data === 'string' ? data : data?.message || 'Falha ao atualizar conta a receber');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  // Handler para submit via Enter no form
-  const handleSubmit = (ev: React.FormEvent) => {
-    ev.preventDefault();
-    submitEdit();
-  };
-
-  useEffect(() => {
-    if (!open || !item) return;
-
-    // Preenche formulário com o item selecionado
-    setForm({
-      descricaoReceber: item.description || '',
-      valorReceber: String(item.amount ?? ''),
-      formaPagamento: item.paymentMethod || '',
-      usuario: item.user || '',
-      dataEmissao: dateToInput(item.issueDate),
-      dataVencimento: dateToInput(item.dueDate),
-      dataRec: item.paymentDate ? dateToInput(item.paymentDate) : '',
-    });
-
-    // Empresa selecionada
-    setSelectedCompany(
-      item.clientId
-        ? { id: item.clientId, name: item.clientName }
-        : null
-    );
-    setCompanyQuery(item.clientName || '');
-    setCompanyOptions([]);
-    setShowCompanyList(false);
-
-    // Conta selecionada
-    setSelectedAccount(
-      item.accountId
-        ? {
-            idConta: item.accountId,
-            agencia: (item.accountInfo.split('Ag ')[1] || '').split(' ')[0] || '',
-            conta: (item.accountInfo.split('Cc ')[1] || '').split('-')[0] || '',
-            dvConta: (item.accountInfo.split('-')[1] || '').trim(),
-            fkBanco: { nomeBanco: item.bankName },
-          }
-        : null
-    );
-    setAccountQuery(item.bankName ? `${item.bankName} • ${item.accountInfo}` : '');
-    setAccountOptions([]);
-    setShowAccountList(false);
-    
-
-    setError(null);
-  }, [open, item]);
-
-  // Busca empresas (q >= 2)
-  useEffect(() => {
-    let mounted = true;
-    let controller: AbortController | null = null;
-    const t = setTimeout(() => {
-      if (!open || !showCompanyList) return;
-      const q = companyQuery.trim();
-      // if query was set by selecting an item, skip fetching
-      if (companySelectedQuery && companySelectedQuery === q) return;
-      if (q.length < 2) {
-        if (mounted) setCompanyOptions([]);
-        return;
-      }
-
-      controller = new AbortController();
-      setLoadingCompanies(true);
-
-      api
-        .get('/empresa', { params: { q }, signal: controller.signal })
-        .then((res) => {
-          if (!mounted) return;
-          const data = res.data?.content || res.data || [];
-          const list: CompanyOption[] = data
-            .map((e: any) => ({
-              id: e.idEmpresa ?? e.id,
-              name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
-            }))
-            .filter((e: any) => e.id && e.name);
-          setCompanyOptions(list);
-          setShowCompanyList(true);
-        })
-        .catch(() => {
-          if (!mounted) return;
-          setCompanyOptions([]);
-        })
-        .finally(() => {
-          if (!mounted) return;
-          setLoadingCompanies(false);
-        });
-    }, 300);
-
-    return () => {
-      mounted = false;
-      clearTimeout(t);
-      if (controller) controller.abort();
-    };
-  }, [open, companyQuery, companySelectedQuery, showCompanyList]);
-
-  // Busca contas (q >= 2)  ✅ usa 'size' em vez de 'pageSize'
-  useEffect(() => {
-    let mounted = true;
-    let controller: AbortController | null = null;
-    const t = setTimeout(() => {
-      if (!open || !showAccountList) return;
-      const q = accountQuery.trim();
-      // skip fetching if the query was set by selection
-      if (accountSelectedQuery && accountSelectedQuery === q) return;
-      if (q.length < 2) {
-        if (mounted) setAccountOptions([]);
-        return;
-      }
-
-      controller = new AbortController();
-      setLoadingAccounts(true);
-
-      api
-        .get('/conta', { params: { q, page: 0, size: 20 }, signal: controller.signal })
-        .then((res) => {
-          if (!mounted) return;
-          const data = res.data?.content || res.data || [];
-          const list: BankAccount[] = data
-            .map((c: any) => ({
-              idConta: c.idConta ?? c.id,
-              agencia: String(c.agencia ?? ''),
-              conta: String(c.conta ?? ''),
-              dvConta: c.dvConta ?? '',
-              fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
-            }))
-            .filter((c: BankAccount) => !!c.idConta);
-          setAccountOptions(list);
-          setShowAccountList(true);
-        })
-        .catch(() => {
-          if (!mounted) return;
-          setAccountOptions([]);
-        })
-        .finally(() => {
-          if (!mounted) return;
-          setLoadingAccounts(false);
-        });
-    }, 300);
-
-    return () => {
-      mounted = false;
-      clearTimeout(t);
-      if (controller) controller.abort();
-    };
-  }, [open, accountQuery, accountSelectedQuery, showAccountList]);
-
-  if (!open || !item) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-auto">
-        <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-semibold">Editar Conta a Receber #{item.id}</h2>
-          <button onClick={onClose} className="text-secondary-500 hover:text-secondary-700">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <form className="p-6 space-y-4" onSubmit={handleSubmit}>
-          {error && (
-            <div className="px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm border border-red-200">
-              {error}
-            </div>
-          )}
-
-          {/* Empresa */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Empresa (Cliente) *</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={companyQuery}
-                onChange={(e) => {
-                  setCompanyQuery(e.target.value);
-                  setSelectedCompany(null);
-                  setCompanySelectedQuery('');
-                }}
-                onFocus={() => {
-                  setCompanySelectedQuery('');
-                  setShowCompanyList(true);
-                }}
-                placeholder="Digite para buscar a empresa..."
-                className="input-field"
-              />
-              {showCompanyList && (
-                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                  {loadingCompanies ? (
-                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
-                  ) : companyQuery.trim().length < 2 ? (
-                    <div className="p-3 text-sm text-secondary-500">Digite pelo menos 2 caracteres</div>
-                  ) : companyOptions.length === 0 ? (
-                    <div className="p-3 text-sm text-secondary-500">Nenhuma empresa encontrada</div>
-                  ) : (
-                    companyOptions.map((opt) => (
-                      <button
-                        type="button"
-                        key={opt.id}
-                        onClick={() => {
-                          setSelectedCompany(opt);
-                          setCompanyQuery(opt.name);
-                          setCompanySelectedQuery(opt.name);
-                          setShowCompanyList(false);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-secondary-50"
-                      >
-                        <div className="text-sm text-secondary-900">ID: {opt.id} • {opt.name}</div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-              {selectedCompany && (
-                <div className="text-xs text-secondary-600 mt-1">Selecionada: ID {selectedCompany.id} • {selectedCompany.name}</div>
-              )}
-            </div>
-          </div>
-
-          {/* Conta */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
-            <div className="relative">
-              <input
-                type="text"
-                value={accountQuery}
-                onChange={(e) => {
-                  setAccountQuery(e.target.value);
-                  setSelectedAccount(null);
-                  setAccountSelectedQuery('');
-                }}
-                onFocus={() => {
-                  setAccountSelectedQuery('');
-                  setShowAccountList(true);
-                }}
-                placeholder="Digite para buscar (banco, agência ou conta)..."
-                className="input-field"
-              />
-              {showAccountList && (
-                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
-                  {loadingAccounts ? (
-                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
-                  ) : accountOptions.length === 0 ? (
-                    <div className="p-3 text-sm text-secondary-500">
-                      {accountQuery.trim().length < 2 ? 'Digite pelo menos 2 caracteres' : 'Nenhuma conta encontrada'}
-                    </div>
-                  ) : (
-                    accountOptions.map((acc) => (
-                      <button
-                        type="button"
-                        key={acc.idConta}
-                        onClick={() => {
-                          // select directly
-                          const label = `${acc.fkBanco?.nomeBanco || 'Banco'} • Ag ${acc.agencia} • Cc ${acc.conta}-${acc.dvConta}`;
-                          setSelectedAccount(acc);
-                          setAccountQuery(label);
-                          setAccountSelectedQuery(label);
-                          setShowAccountList(false);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-secondary-50"
-                      >
-                        <div className="text-sm text-secondary-900">
-                          ID: {acc.idConta} • {acc.fkBanco?.nomeBanco || 'Banco'} • Ag {acc.agencia} • Cc {acc.conta}-{acc.dvConta}
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-              {selectedAccount && (
-                <div className="mt-2 rounded-md border bg-secondary-50 p-3">
-                  <div className="text-sm font-semibold mb-1">Resumo da conta selecionada</div>
-                  <div className="text-sm text-secondary-900">ID: {selectedAccount.idConta}</div>
-                  <div className="text-sm text-secondary-900">Banco: {selectedAccount.fkBanco?.nomeBanco ?? '-'}</div>
-                  <div className="text-sm text-secondary-900">Agência: {selectedAccount.agencia} • Conta: {selectedAccount.conta}-{selectedAccount.dvConta}</div>
-                  <div className="flex justify-end gap-2 mt-2">
-                    <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>
-                      Limpar
-                    </button>
-                  </div>
-                </div>
-              )}
-              {selectedAccount && (
-                <div className="text-xs text-secondary-600 mt-1">
-                  Selecionada: ID {selectedAccount.idConta}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Campos principais */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Descrição *</label>
-              <input
-                type="text"
-                value={form.descricaoReceber}
-                onChange={(e) => setForm({ ...form, descricaoReceber: e.target.value })}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Forma de Pagamento *</label>
-              <select
-                value={form.formaPagamento}
-                onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}
-                className="input-field"
-              >
-                <option value="">Selecione</option>
-                <option value="DINHEIRO">Dinheiro</option>
-                <option value="BOLETO">Boleto</option>
-                <option value="CARTAO_DEBITO">Cartão Débito</option>
-                <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="TRANSFERENCIA_BANCARIA">Transferência Bancária</option>
-                <option value="PIX">PIX</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Data Emissão *</label>
-              <input
-                type="date"
-                value={form.dataEmissao}
-                onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Data Vencimento *</label>
-              <input
-                type="date"
-                value={form.dataVencimento}
-                onChange={(e) => setForm({ ...form, dataVencimento: e.target.value })}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Data Recebimento</label>
-              <input
-                type="date"
-                value={form.dataRec}
-                onChange={(e) => setForm({ ...form, dataRec: e.target.value })}
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Valor *</label>
-              <input
-                type="number"
-                step="0.01"
-                value={form.valorReceber}
-                onChange={(e) => setForm({ ...form, valorReceber: e.target.value })}
-                className="input-field"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Usuário *</label>
-              <input
-                type="text"
-                value={form.usuario}
-                onChange={(e) => setForm({ ...form, usuario: e.target.value })}
-                className="input-field"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" className="px-4 py-2 border rounded-md" onClick={onClose} disabled={submitting}>
-              Cancelar
-            </button>
-            <button
-              type="button"                 // ✅ evita depender do submit do form
-              className="btn-primary"
-              disabled={submitting}
-              onClick={submitEdit}          // ✅ chama diretamente o PUT
-            >
-              {submitting ? 'Salvando...' : 'Salvar alterações'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
-// ---------------- Fim do Modal ----------------
 
 // ---------------- Modal de Criação ----------------
 const CreateReceivableModal: React.FC<{
@@ -1065,7 +583,7 @@ const CreateReceivableModal: React.FC<{
   const [showCompanyList, setShowCompanyList] = useState(false);
   const [companySelectedQuery, setCompanySelectedQuery] = useState('');
 
-  // Conta (autocomplete)
+  // Conta (autocomplete com prévia)
   const [accountQuery, setAccountQuery] = useState('');
   const [accountOptions, setAccountOptions] = useState<BankAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
@@ -1084,67 +602,12 @@ const CreateReceivableModal: React.FC<{
     dataRec: '',
   });
 
-  const dateToInput = (d?: Date | null) => {
-    if (!d) return '';
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  };
-
   const inputToDateTime = (s: string) => (s ? `${s}T12:00:00` : null);
-  const getEmpresaId = () => (selectedCompany?.id ?? null);
-  const getContaId = () => (selectedAccount?.idConta ?? null);
 
-  const submitCreate = async () => {
-    const empresaId = getEmpresaId();
-    const contaId = getContaId();
-
-    // Validações mínimas
-    if (!empresaId) return setError('Selecione a empresa');
-    if (!contaId) return setError('Selecione a conta bancária');
-    if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
-    if (!form.formaPagamento) return setError('Informe a forma de pagamento');
-    if (!form.dataEmissao) return setError('Informe a data de emissão');
-    if (!form.dataVencimento) return setError('Informe a data de vencimento');
-    if (!form.usuario.trim()) return setError('Informe o usuário');
-    if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
-
-    const url = `/receber`;
-    const payload = {
-      valorReceber: Number(form.valorReceber),
-      dataVencimento: inputToDateTime(form.dataVencimento),
-      dataEmissao: inputToDateTime(form.dataEmissao),
-      dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
-      descricaoReceber: form.descricaoReceber,
-      formaPagamento: form.formaPagamento,
-      usuario: form.usuario,
-      empresa: { idEmpresa: Number(empresaId) },
-      conta: { idConta: Number(contaId) },
-    };
-
-    try {
-      setSubmitting(true);
-      setError(null);
-      console.debug('POST', url, payload);
-      await api.post(url, payload);
-      alert('Conta a receber criada com sucesso!');
-      onSaved();
-    } catch (err: any) {
-      console.error('Erro no POST /receber:', err?.response || err);
-      const data = err?.response?.data;
-      setError(typeof data === 'string' ? data : data?.message || 'Falha ao criar conta a receber');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleSubmit = (ev: React.FormEvent) => {
-    ev.preventDefault();
-    submitCreate();
-  };
-
+  // Reset form when modal opens
   useEffect(() => {
     if (!open) return;
-    // reset everything on open
+
     setForm({
       descricaoReceber: '',
       valorReceber: '',
@@ -1245,7 +708,7 @@ const CreateReceivableModal: React.FC<{
               dvConta: c.dvConta ?? '',
               fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
             }))
-            .filter((c: BankAccount) => !!c.idConta);
+            .filter((c: any) => !!c.idConta);
           setAccountOptions(list);
           setShowAccountList(true);
         })
@@ -1265,6 +728,53 @@ const CreateReceivableModal: React.FC<{
       if (controller) controller.abort();
     };
   }, [open, accountQuery, accountSelectedQuery, showAccountList]);
+
+  const submitCreate = async () => {
+    const empresaId = selectedCompany?.id;
+    const contaId = selectedAccount?.idConta;
+
+    // Validações mínimas
+    if (!empresaId) return setError('Selecione a empresa (cliente)');
+    if (!contaId) return setError('Selecione a conta bancária');
+    if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
+    if (!form.formaPagamento) return setError('Informe a forma de pagamento');
+    if (!form.dataEmissao) return setError('Informe a data de emissão');
+    if (!form.dataVencimento) return setError('Informe a data de vencimento');
+    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
+
+    const payload = {
+      valorReceber: Number(form.valorReceber),
+      dataVencimento: inputToDateTime(form.dataVencimento),
+      dataEmissao: inputToDateTime(form.dataEmissao),
+      dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
+      descricaoReceber: form.descricaoReceber,
+      formaPagamento: form.formaPagamento,
+      usuario: form.usuario,
+      empresa: { idEmpresa: Number(empresaId) },
+      conta: { idConta: Number(contaId) },
+    };
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      console.debug('POST /receber', payload);
+      await api.post('/receber', payload);
+      alert('Conta a receber criada com sucesso!');
+      onSaved();
+    } catch (err: any) {
+      console.error('Erro no POST /receber:', err?.response || err);
+      const data = err?.response?.data;
+      setError(typeof data === 'string' ? data : data?.message || 'Falha ao criar conta a receber');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    submitCreate();
+  };
 
   if (!open) return null;
 
@@ -1390,8 +900,12 @@ const CreateReceivableModal: React.FC<{
                 <div className="mt-2 rounded-md border bg-secondary-50 p-3">
                   <div className="text-sm font-semibold mb-1">Resumo da conta selecionada</div>
                   <div className="text-sm text-secondary-900">ID: {selectedAccount.idConta}</div>
-                  <div className="text-sm text-secondary-900">Banco: {selectedAccount.fkBanco?.nomeBanco ?? '-'}</div>
-                  <div className="text-sm text-secondary-900">Agência: {selectedAccount.agencia} • Conta: {selectedAccount.conta}-{selectedAccount.dvConta}</div>
+                  <div className="text-sm text-secondary-900">
+                    Banco: {selectedAccount.fkBanco?.nomeBanco ?? '-'}
+                  </div>
+                  <div className="text-sm text-secondary-900">
+                    Agência: {selectedAccount.agencia} • Conta: {selectedAccount.conta}-{selectedAccount.dvConta}
+                  </div>
                   <div className="flex justify-end gap-2 mt-2">
                     <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>
                       Limpar
@@ -1400,7 +914,9 @@ const CreateReceivableModal: React.FC<{
                 </div>
               )}
               {selectedAccount && (
-                <div className="text-xs text-secondary-600 mt-1">Selecionada: ID {selectedAccount.idConta}</div>
+                <div className="text-xs text-secondary-600 mt-1">
+                  Selecionada: ID {selectedAccount.idConta}
+                </div>
               )}
             </div>
           </div>
@@ -1425,11 +941,10 @@ const CreateReceivableModal: React.FC<{
               >
                 <option value="">Selecione</option>
                 <option value="DINHEIRO">Dinheiro</option>
-                <option value="BOLETO">Boleto</option>
-                <option value="CARTAO_DEBITO">Cartão Débito</option>
-                <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="TRANSFERENCIA_BANCARIA">Transferência Bancária</option>
                 <option value="PIX">PIX</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="CARTAO">Cartão</option>
+                <option value="TRANSFERENCIA">Transferência</option>
               </select>
             </div>
           </div>
@@ -1504,7 +1019,469 @@ const CreateReceivableModal: React.FC<{
     </div>
   );
 };
-
 // ---------------- Fim do Modal de Criação ----------------
+
+// ---------------- Modal de Edição ----------------
+const EditReceivableModal: React.FC<{
+  open: boolean;
+  item: ReceivableItem | null;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ open, item, onClose, onSaved }) => {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Empresa (autocomplete)
+  const [companyQuery, setCompanyQuery] = useState('');
+  const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [showCompanyList, setShowCompanyList] = useState(false);
+
+  // Conta (autocomplete com prévia)
+  const [accountQuery, setAccountQuery] = useState('');
+  const [accountOptions, setAccountOptions] = useState<BankAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [showAccountList, setShowAccountList] = useState(false);
+  const [accountPreview, setAccountPreview] = useState<BankAccount | null>(null);
+
+  // Form
+  const [form, setForm] = useState({
+    descricaoReceber: '',
+    valorReceber: '',
+    formaPagamento: '',
+    usuario: '',
+    dataEmissao: '',
+    dataVencimento: '',
+    dataRec: '',
+  });
+
+  const dateToInput = (d?: Date | null) => {
+    if (!d) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
+  const inputToDateTime = (s: string) => (s ? `${s}T12:00:00` : null);
+  const getEmpresaId = () => (selectedCompany?.id ?? item?.clientId ?? null);
+  const getContaId = () => (selectedAccount?.idConta ?? item?.accountId ?? null);
+
+  // Função centralizada de submit do PUT
+  const submitEdit = async () => {
+    if (!item) return;
+
+    const empresaId = getEmpresaId();
+    const contaId = getContaId();
+
+    console.debug('[submitEdit] Iniciando update para id:', item.id);
+
+    // Validações mínimas (entidade exige @NotNull/@NotBlank e @ManyToOne(optional=false))
+    if (!empresaId) return setError('Selecione a empresa');
+    if (!contaId) return setError('Selecione a conta bancária');
+    if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
+    if (!form.formaPagamento) return setError('Informe a forma de pagamento');
+    if (!form.dataEmissao) return setError('Informe a data de emissão');
+    if (!form.dataVencimento) return setError('Informe a data de vencimento');
+    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
+
+    // ✅ envia no formato da entidade (com id no path e no corpo)
+    const url = `/receber/${Number(item.id)}`;
+    const payload = {
+      idReceber: Number(item.id), // requerido pelo @Validated(UpdateReceber)
+      valorReceber: Number(form.valorReceber),
+      dataVencimento: inputToDateTime(form.dataVencimento),
+      dataEmissao: inputToDateTime(form.dataEmissao),
+      dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
+      descricaoReceber: form.descricaoReceber,
+      formaPagamento: form.formaPagamento,
+      usuario: form.usuario,
+      empresa: { idEmpresa: Number(empresaId) },
+      conta: { idConta: Number(contaId) },
+    };
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      console.debug('PUT', url, payload);
+      await api.put(url, payload);
+      alert('Conta a receber atualizada com sucesso!');
+      onSaved();
+    } catch (err: any) {
+      console.error('Erro no PUT /receber:', err?.response || err);
+      const data = err?.response?.data;
+      setError(typeof data === 'string' ? data : data?.message || 'Falha ao atualizar conta a receber');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handler para submit via Enter no form
+  const handleSubmit = (ev: React.FormEvent) => {
+    ev.preventDefault();
+    submitEdit();
+  };
+
+  useEffect(() => {
+    if (!open || !item) return;
+
+    // Preenche formulário com o item selecionado
+    setForm({
+      descricaoReceber: item.description || '',
+      valorReceber: String(item.amount ?? ''),
+      formaPagamento: item.paymentMethod || '',
+      usuario: item.user || '',
+      dataEmissao: dateToInput(item.issueDate),
+      dataVencimento: dateToInput(item.dueDate),
+      dataRec: item.paymentDate ? dateToInput(item.paymentDate) : '',
+    });
+
+    // Empresa selecionada
+    setSelectedCompany(
+      item.clientId
+        ? { id: item.clientId, name: item.clientName }
+        : null
+    );
+    setCompanyQuery(item.clientName || '');
+    setCompanyOptions([]);
+    setShowCompanyList(false);
+
+    // Conta selecionada
+    setSelectedAccount(
+      item.accountId
+        ? {
+            idConta: item.accountId,
+            agencia: (item.accountInfo.split('Ag ')[1] || '').split(' ')[0] || '',
+            conta: (item.accountInfo.split('Cc ')[1] || '').split('-')[0] || '',
+            dvConta: (item.accountInfo.split('-')[1] || '').trim(),
+            fkBanco: { nomeBanco: item.bankName },
+          }
+        : null
+    );
+    setAccountQuery(item.bankName ? `${item.bankName} • ${item.accountInfo}` : '');
+    setAccountOptions([]);
+    setShowAccountList(false);
+    setAccountPreview(null);
+
+    setError(null);
+  }, [open, item]);
+
+  // Busca empresas (q >= 2)
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!open) return;
+      const q = companyQuery.trim();
+      if (q.length < 2) {
+        setCompanyOptions([]);
+        return;
+      }
+      try {
+        setLoadingCompanies(true);
+        const res = await api.get('/empresa', { params: { q } });
+        const data = res.data?.content || res.data || [];
+        const list: CompanyOption[] = data
+          .map((e: any) => ({
+            id: e.idEmpresa ?? e.id,
+            name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
+          }))
+          .filter((e: any) => e.id && e.name);
+        setCompanyOptions(list);
+        setShowCompanyList(true);
+      } catch (e) {
+        setCompanyOptions([]);
+      } finally {
+        setLoadingCompanies(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [open, companyQuery]);
+
+  // Busca contas (q >= 2)  ✅ usa 'size' em vez de 'pageSize'
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      if (!open) return;
+      const q = accountQuery.trim();
+      if (q.length < 2 || accountPreview) return;
+      try {
+        setLoadingAccounts(true);
+        const res = await api.get('/conta', { params: { q, page: 0, size: 20 } });
+        const data = res.data?.content || res.data || [];
+        const list: BankAccount[] = data
+          .map((c: any) => ({
+            idConta: c.idConta ?? c.id,
+            agencia: String(c.agencia ?? ''),
+            conta: String(c.conta ?? ''),
+            dvConta: c.dvConta ?? '',
+            fkBanco: { nomeBanco: c.fkBanco?.nomeBanco ?? c.banco?.nome },
+          }))
+          .filter((c: any) => !!c.idConta);
+        setAccountOptions(list);
+        setShowAccountList(true);
+      } catch (e) {
+        setAccountOptions([]);
+      } finally {
+        setLoadingAccounts(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [open, accountQuery, accountPreview]);
+
+  if (!open || !item) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 max-h-[90vh] overflow-auto">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-lg font-semibold">Editar Conta a Receber #{item.id}</h2>
+          <button onClick={onClose} className="text-secondary-500 hover:text-secondary-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <form className="p-6 space-y-4" onSubmit={handleSubmit}>
+          {error && (
+            <div className="px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm border border-red-200">
+              {error}
+            </div>
+          )}
+
+          {/* Empresa */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Empresa (Cliente) *</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={companyQuery}
+                onChange={(e) => {
+                  setCompanyQuery(e.target.value);
+                  setSelectedCompany(null);
+                }}
+                onFocus={() => setShowCompanyList(true)}
+                placeholder="Digite para buscar a empresa..."
+                className="input-field"
+              />
+              {showCompanyList && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {loadingCompanies ? (
+                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                  ) : companyQuery.trim().length < 2 ? (
+                    <div className="p-3 text-sm text-secondary-500">Digite pelo menos 2 caracteres</div>
+                  ) : companyOptions.length === 0 ? (
+                    <div className="p-3 text-sm text-secondary-500">Nenhuma empresa encontrada</div>
+                  ) : (
+                    companyOptions.map((opt) => (
+                      <button
+                        type="button"
+                        key={opt.id}
+                        onClick={() => {
+                          setSelectedCompany(opt);
+                          setCompanyQuery(opt.name);
+                          setShowCompanyList(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-secondary-50"
+                      >
+                        <div className="text-sm text-secondary-900">ID: {opt.id} • {opt.name}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {selectedCompany && (
+                <div className="text-xs text-secondary-600 mt-1">Selecionada: ID {selectedCompany.id} • {selectedCompany.name}</div>
+              )}
+            </div>
+          </div>
+
+          {/* Conta */}
+          <div>
+            <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={accountQuery}
+                onChange={(e) => {
+                  setAccountQuery(e.target.value);
+                  setSelectedAccount(null);
+                  setAccountPreview(null);
+                }}
+                onFocus={() => setShowAccountList(true)}
+                placeholder="Digite para buscar (banco, agência ou conta)..."
+                className="input-field"
+              />
+              {showAccountList && (
+                <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                  {loadingAccounts ? (
+                    <div className="p-3 text-sm text-secondary-500">Carregando...</div>
+                  ) : accountOptions.length === 0 ? (
+                    <div className="p-3 text-sm text-secondary-500">
+                      {accountQuery.trim().length < 2 ? 'Digite pelo menos 2 caracteres' : 'Nenhuma conta encontrada'}
+                    </div>
+                  ) : (
+                    accountOptions.map((acc) => (
+                      <button
+                        type="button"
+                        key={acc.idConta}
+                        onClick={() => {
+                          setAccountPreview(acc);
+                          setShowAccountList(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-secondary-50"
+                      >
+                        <div className="text-sm text-secondary-900">
+                          ID: {acc.idConta} • {acc.fkBanco?.nomeBanco || 'Banco'} • Ag {acc.agencia} • Cc {acc.conta}-{acc.dvConta}
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+              {(selectedAccount || accountPreview) && (
+                <div className="mt-2 rounded-md border bg-secondary-50 p-3">
+                  <div className="text-sm font-semibold mb-1">Resumo da conta selecionada</div>
+                  <div className="text-sm text-secondary-900">
+                    ID: {accountPreview?.idConta ?? selectedAccount?.idConta}
+                  </div>
+                  <div className="text-sm text-secondary-900">
+                    Banco: {accountPreview?.fkBanco?.nomeBanco ?? selectedAccount?.fkBanco?.nomeBanco ?? '-'}
+                  </div>
+                  <div className="text-sm text-secondary-900">
+                    Agência: {accountPreview?.agencia ?? selectedAccount?.agencia} • Conta: {accountPreview?.conta ?? selectedAccount?.conta}-{accountPreview?.dvConta ?? selectedAccount?.dvConta}
+                  </div>
+                  <div className="flex justify-end gap-2 mt-2">
+                    {accountPreview ? (
+                      <>
+                        <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setAccountPreview(null)}>
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-primary px-3 py-1 text-sm"
+                          onClick={() => {
+                            setSelectedAccount(accountPreview);
+                            setAccountQuery(
+                              `${accountPreview.fkBanco?.nomeBanco || 'Banco'} • Ag ${accountPreview.agencia} • Cc ${accountPreview.conta}-${accountPreview.dvConta}`
+                            );
+                            setAccountPreview(null);
+                          }}
+                        >
+                          Confirmar
+                        </button>
+                      </>
+                    ) : (
+                      <button type="button" className="px-3 py-1 border rounded-md text-sm" onClick={() => setSelectedAccount(null)}>
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {selectedAccount && (
+                <div className="text-xs text-secondary-600 mt-1">
+                  Selecionada: ID {selectedAccount.idConta}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Campos principais */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Descrição *</label>
+              <input
+                type="text"
+                value={form.descricaoReceber}
+                onChange={(e) => setForm({ ...form, descricaoReceber: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Forma de Pagamento *</label>
+              <select
+                value={form.formaPagamento}
+                onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })}
+                className="input-field"
+              >
+                <option value="">Selecione</option>
+                <option value="DINHEIRO">Dinheiro</option>
+                <option value="PIX">PIX</option>
+                <option value="BOLETO">Boleto</option>
+                <option value="CARTAO">Cartão</option>
+                <option value="TRANSFERENCIA">Transferência</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Emissão *</label>
+              <input
+                type="date"
+                value={form.dataEmissao}
+                onChange={(e) => setForm({ ...form, dataEmissao: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Vencimento *</label>
+              <input
+                type="date"
+                value={form.dataVencimento}
+                onChange={(e) => setForm({ ...form, dataVencimento: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Data Recebimento</label>
+              <input
+                type="date"
+                value={form.dataRec}
+                onChange={(e) => setForm({ ...form, dataRec: e.target.value })}
+                className="input-field"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Valor *</label>
+              <input
+                type="number"
+                step="0.01"
+                value={form.valorReceber}
+                onChange={(e) => setForm({ ...form, valorReceber: e.target.value })}
+                className="input-field"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Usuário *</label>
+              <input
+                type="text"
+                value={form.usuario}
+                onChange={(e) => setForm({ ...form, usuario: e.target.value })}
+                className="input-field"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" className="px-4 py-2 border rounded-md" onClick={onClose} disabled={submitting}>
+              Cancelar
+            </button>
+            <button
+              type="button"                 // ✅ evita depender do submit do form
+              className="btn-primary"
+              disabled={submitting}
+              onClick={submitEdit}          // ✅ chama diretamente o PUT
+            >
+              {submitting ? 'Salvando...' : 'Salvar alterações'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+// ---------------- Fim do Modal ----------------
 
 export default Receivables;
