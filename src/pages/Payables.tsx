@@ -693,7 +693,6 @@ const Payables: React.FC = () => {
   // }, []);
 
   const mapContaPagarToPayable = (c: ContaPagarApi): PayableItem => {
-    console.log('Mapeando conta a pagar:', c);
     
     const dueDate = new Date(c.dataVencimento);
     const today = new Date();
@@ -738,10 +737,7 @@ const Payables: React.FC = () => {
           pageSize: size,
         }
       });
-
-      console.log('Resposta completa de /pagar:', res.data);
-      console.log('Primeiro item (se existir):', res.data.content?.[0]);
-
+      
       const contas = res.data.content || [];
       
       if (contas.length === 0) {
@@ -749,8 +745,7 @@ const Payables: React.FC = () => {
       }
 
       const mapped = contas.map(mapContaPagarToPayable);
-      console.log('Contas mapeadas:', mapped);
-
+      
       setPayables(mapped);
       setCurrentPage(res.data.number);
       setTotalPages(res.data.totalPages);

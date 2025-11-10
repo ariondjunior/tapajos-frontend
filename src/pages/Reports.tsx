@@ -3,6 +3,11 @@ import { Download, Calendar, FileText } from 'lucide-react';
 import { clientSupplierService, bankService, movimentacaoService, bankTransactionService, userService } from '../services';
 import { useFinance } from '../contexts/FinanceContext';
 import { ClientSupplier, Bank, BankTransaction, User } from '../types';
+import api from '../services/api';
+import { Pie } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const Reports: React.FC = () => {
   const [extratoDiario, setExtratoDiario] = useState<any[]>([]);
@@ -23,6 +28,7 @@ const Reports: React.FC = () => {
   const [dailySummary, setDailySummary] = useState<any[]>([]);
   const [loadingDaily, setLoadingDaily] = useState(false);
   const { banks: financeBanks } = useFinance();
+  const [financeAccounts, setFinanceAccounts] = useState<Bank[]>([]);
 
   useEffect(() => {
     const init = async () => {
@@ -78,6 +84,27 @@ const Reports: React.FC = () => {
       const res = await movimentacaoService.getExtratoDiario();
       // expect array like [{ tipo: 'Pago', valor: 800.00 }, { tipo: 'Recebido', valor: null }]
       setDailySummary(res || []);
+      // refresh bank accounts from backend (/conta) so balances are up-to-date
+      try {
+        const PAGE_SIZE = 100;
+        const first = await api.get('/conta', { params: { page: 0, size: PAGE_SIZE } });
+        let all = first.data.content || [];
+        const totalPages = Number(first.data.totalPages ?? 1);
+        if (totalPages > 1) {
+          const promises = [];
+          for (let p = 1; p < totalPages; p++) promises.push(api.get('/conta', { params: { page: p, size: PAGE_SIZE } }));
+          const pages = await Promise.all(promises);
+          pages.forEach(r => { all = all.concat(r.data.content || []); });
+        }
+        const mapped = (all || []).map((c: any) => ({
+          id: String(c.idConta),
+          name: `${c.fkBanco?.nomeBanco ?? 'Banco'} • Ag ${c.agencia} Cc ${c.conta}-${c.dvConta}`,
+          balance: Number(c.saldo ?? 0)
+        }));
+        setFinanceAccounts(mapped);
+      } catch (err) {
+        console.error('Erro ao recarregar contas (/conta):', err);
+      }
     } catch (err) {
       console.error('Erro ao buscar extrato do dia', err);
       setDailySummary([]);
@@ -118,6 +145,27 @@ const Reports: React.FC = () => {
 
   const formatCurrency = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
 
+  const getDescription = (it: any) => {
+    if (!it) return '-';
+    const candidates = [
+      it.descricao,
+      it.descricaoPagar,
+      it.descricaoReceber,
+      it.description,
+      it.historico,
+      it.historicoMovimentacao,
+      it.observacao,
+      it.descricaoMovimentacao,
+      it['descricao_movimentacao'],
+      it.details,
+      it.note,
+    ];
+    for (const c of candidates) {
+      if (c !== undefined && c !== null && String(c).toString().trim() !== '') return String(c);
+    }
+    return '-';
+  };
+
   const exportToCSV = (data: any[], filename: string) => {
     if (!data || data.length === 0) {
       alert('Nenhum dado para exportar');
@@ -141,7 +189,7 @@ const Reports: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Relatórios Gerenciais</h1>
-        <p className="text-secondary-600">Extratos totais e por período</p>
+        <p className="text-secondary-600">Extratos total e por período</p>
       </div>
 
       <div className="card">
@@ -166,47 +214,34 @@ const Reports: React.FC = () => {
                 const receivedItem = dailySummary.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: 0 };
                 const paid = Number(paidItem.valor ?? 0) || 0;
                 const received = Number(receivedItem.valor ?? 0) || 0;
-                const total = paid + received || 1; // avoid div by zero
-                const receivedPct = received / total;
-                const paidPct = paid / total;
-                const radius = 40;
-                const circumference = 2 * Math.PI * radius;
-                const receivedDash = receivedPct * circumference;
-                const paidDash = paidPct * circumference;
+
+                const chartData = {
+                  labels: ['Recebido', 'Pago'],
+                  datasets: [
+                    {
+                      data: [received, paid],
+                      backgroundColor: ['#10b981', '#ef4444'],
+                      hoverBackgroundColor: ['#059669', '#dc2626'],
+                      borderWidth: 0
+                    }
+                  ]
+                };
+
+                const chartOptions: any = {
+                  plugins: {
+                    legend: { position: 'bottom' as const }
+                  },
+                  maintainAspectRatio: false
+                };
 
                 return (
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
                     <div className="flex items-center gap-6">
-                      <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
-                      <g transform="translate(60,60)">
-                        <circle r={radius} fill="#f3f4f6" />
-                        {/* received slice (green) */}
-                        <circle
-                          r={radius}
-                          fill="transparent"
-                          stroke="#10b981"
-                          strokeWidth={radius * 2}
-                          strokeDasharray={`${receivedDash} ${circumference - receivedDash}`}
-                          transform="rotate(-90)"
-                          strokeLinecap="butt"
-                        />
-                        {/* paid slice (red) */}
-                        <circle
-                          r={radius}
-                          fill="transparent"
-                          stroke="#ef4444"
-                          strokeWidth={radius * 2}
-                          strokeDasharray={`${paidDash} ${circumference - paidDash}`}
-                          transform={`rotate(${ -90 + (receivedPct * 360) })`}
-                          strokeLinecap="butt"
-                        />
-                        <text x="0" y="6" textAnchor="middle" className="text-sm font-semibold" fill="#111827">
-                          {formatCurrency(received + paid)}
-                        </text>
-                      </g>
-                    </svg>
+                      <div style={{ width: 140, height: 140 }} className="flex-shrink-0">
+                        <Pie data={chartData} options={chartOptions} />
+                      </div>
 
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-3 justify-center items-start">
                         <div>
                           <div className="flex items-center mb-2">
                             <span className="w-3 h-3 inline-block mr-2 rounded-full bg-green-500" />
@@ -226,8 +261,8 @@ const Reports: React.FC = () => {
                       <div className="text-sm font-medium text-secondary-600 mb-2">Saldos por Conta</div>
                       <div>
                         <div className="space-y-2 max-h-44 overflow-auto pr-2">
-                          {financeBanks && financeBanks.length > 0 ? (
-                            financeBanks.map((b: any) => (
+                          {financeAccounts && financeAccounts.length > 0 ? (
+                            financeAccounts.map((b: any) => (
                               <div key={b.id} className="text-sm text-secondary-800">
                                 <div className="font-medium truncate">{b.name}</div>
                                 <div className="text-xs text-secondary-500">ID: {b.id} — {formatCurrency(Number(b.balance ?? 0))}</div>
@@ -243,7 +278,7 @@ const Reports: React.FC = () => {
                           <div className="text-sm text-secondary-600">Total em Bancos</div>
                           <div className="text-lg font-semibold text-secondary-900">
                             {formatCurrency(
-                              (financeBanks || []).reduce((s: number, b: any) => s + Number(b.balance ?? 0), 0)
+                              (financeAccounts || []).reduce((s: number, b: any) => s + Number(b.balance ?? 0), 0)
                             )}
                           </div>
                         </div>
@@ -317,7 +352,7 @@ const Reports: React.FC = () => {
                     <tr key={i} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(it.dataRegistroMovimentacao || it.data)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600">{(it.conta && (it.conta.fkBanco?.nomeBanco || it.conta.nomeBanco)) || it.nomeBanco || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{it.descricao || it.descricaoPagar || it.descricaoReceber || it.description || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{getDescription(it)}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 text-center">{it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'Pagar' : 'Receber'}</td>
                       <td className={`px-4 py-3 text-sm font-medium text-right ${it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Number(it.valor || it.valorMov || it.amount || 0))}</td>
                       <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{it.usuario || it.usuarioCad || '-'}</td>
@@ -345,36 +380,36 @@ const Reports: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <div className="inline-block min-w-full align-middle">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-white">
+          <table className="min-w-full divide-y divide-secondary-200">
+            <thead>
+              <tr className="table-header">
+                <th className="px-6 py-3 text-left">Data</th>
+                <th className="px-6 py-3 text-left">Banco</th>
+                <th className="px-6 py-3 text-left">Descrição</th>
+                <th className="px-6 py-3 text-center">Tipo</th>
+                <th className="px-6 py-3 text-right">Valor</th>
+                <th className="px-6 py-3 text-left">Usuário</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-secondary-200">
+              {extratoPeriodo.length === 0 ? (
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Data</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Usuário</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Conta (ID)</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Tipo</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Valor</th>
+                  <td colSpan={6} className="table-cell text-center text-secondary-500">Nenhuma movimentação para o período</td>
                 </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-100">
-                {extratoPeriodo.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma movimentação para o período</td>
+              ) : (
+                extratoPeriodo.map((it: any, i: number) => (
+                  <tr key={i} className="hover:bg-secondary-50">
+                    <td className="table-cell">{formatDate(it.dataRegistroMovimentacao || it.data)}</td>
+                    <td className="table-cell">{(it.conta && (it.conta.fkBanco?.nomeBanco || it.conta.nomeBanco)) || it.nomeBanco || '-'}</td>
+                    <td className="table-cell">{getDescription(it)}</td>
+                    <td className="table-cell text-center">{it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'Pagar' : 'Receber'}</td>
+                    <td className={`table-cell text-right font-semibold ${it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Number(it.valor || it.valorMov || it.amount || 0))}</td>
+                    <td className="table-cell">{it.usuario || it.usuarioCad || '-'}</td>
                   </tr>
-                ) : (
-                  extratoPeriodo.map((it: any, i: number) => (
-                    <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(it.dataRegistroMovimentacao || it.data)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{it.usuario || it.usuarioCad || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{(it.conta && it.conta.idConta) || it.idConta || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'Pagar' : 'Receber'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-700 text-right font-medium">{formatCurrency(Number(it.valor || it.valorMov || it.amount || 0))}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
