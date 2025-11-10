@@ -3,11 +3,6 @@ import { Download, Calendar, FileText } from 'lucide-react';
 import { clientSupplierService, bankService, movimentacaoService, bankTransactionService, userService } from '../services';
 import { useFinance } from '../contexts/FinanceContext';
 import { ClientSupplier, Bank, BankTransaction, User } from '../types';
-import api from '../services/api';
-import { Pie } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 const Reports: React.FC = () => {
   const [extratoDiario, setExtratoDiario] = useState<any[]>([]);
@@ -28,7 +23,6 @@ const Reports: React.FC = () => {
   const [dailySummary, setDailySummary] = useState<any[]>([]);
   const [loadingDaily, setLoadingDaily] = useState(false);
   const { banks: financeBanks } = useFinance();
-  const [financeAccounts, setFinanceAccounts] = useState<Bank[]>([]);
 
   useEffect(() => {
     const init = async () => {
@@ -84,27 +78,6 @@ const Reports: React.FC = () => {
       const res = await movimentacaoService.getExtratoDiario();
       // expect array like [{ tipo: 'Pago', valor: 800.00 }, { tipo: 'Recebido', valor: null }]
       setDailySummary(res || []);
-      // refresh bank accounts from backend (/conta) so balances are up-to-date
-      try {
-        const PAGE_SIZE = 100;
-        const first = await api.get('/conta', { params: { page: 0, size: PAGE_SIZE } });
-        let all = first.data.content || [];
-        const totalPages = Number(first.data.totalPages ?? 1);
-        if (totalPages > 1) {
-          const promises = [];
-          for (let p = 1; p < totalPages; p++) promises.push(api.get('/conta', { params: { page: p, size: PAGE_SIZE } }));
-          const pages = await Promise.all(promises);
-          pages.forEach(r => { all = all.concat(r.data.content || []); });
-        }
-        const mapped = (all || []).map((c: any) => ({
-          id: String(c.idConta),
-          name: `${c.fkBanco?.nomeBanco ?? 'Banco'} • Ag ${c.agencia} Cc ${c.conta}-${c.dvConta}`,
-          balance: Number(c.saldo ?? 0)
-        }));
-        setFinanceAccounts(mapped);
-      } catch (err) {
-        console.error('Erro ao recarregar contas (/conta):', err);
-      }
     } catch (err) {
       console.error('Erro ao buscar extrato do dia', err);
       setDailySummary([]);
@@ -168,7 +141,7 @@ const Reports: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Relatórios Gerenciais</h1>
-        <p className="text-secondary-600">Extratos total e por período</p>
+        <p className="text-secondary-600">Extratos totais e por período</p>
       </div>
 
       <div className="card">
@@ -193,34 +166,47 @@ const Reports: React.FC = () => {
                 const receivedItem = dailySummary.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: 0 };
                 const paid = Number(paidItem.valor ?? 0) || 0;
                 const received = Number(receivedItem.valor ?? 0) || 0;
-
-                const chartData = {
-                  labels: ['Recebido', 'Pago'],
-                  datasets: [
-                    {
-                      data: [received, paid],
-                      backgroundColor: ['#10b981', '#ef4444'],
-                      hoverBackgroundColor: ['#059669', '#dc2626'],
-                      borderWidth: 0
-                    }
-                  ]
-                };
-
-                const chartOptions: any = {
-                  plugins: {
-                    legend: { position: 'bottom' as const }
-                  },
-                  maintainAspectRatio: false
-                };
+                const total = paid + received || 1; // avoid div by zero
+                const receivedPct = received / total;
+                const paidPct = paid / total;
+                const radius = 40;
+                const circumference = 2 * Math.PI * radius;
+                const receivedDash = receivedPct * circumference;
+                const paidDash = paidPct * circumference;
 
                 return (
                   <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
                     <div className="flex items-center gap-6">
-                      <div style={{ width: 140, height: 140 }} className="flex-shrink-0">
-                        <Pie data={chartData} options={chartOptions} />
-                      </div>
+                      <svg width="120" height="120" viewBox="0 0 120 120" className="flex-shrink-0">
+                      <g transform="translate(60,60)">
+                        <circle r={radius} fill="#f3f4f6" />
+                        {/* received slice (green) */}
+                        <circle
+                          r={radius}
+                          fill="transparent"
+                          stroke="#10b981"
+                          strokeWidth={radius * 2}
+                          strokeDasharray={`${receivedDash} ${circumference - receivedDash}`}
+                          transform="rotate(-90)"
+                          strokeLinecap="butt"
+                        />
+                        {/* paid slice (red) */}
+                        <circle
+                          r={radius}
+                          fill="transparent"
+                          stroke="#ef4444"
+                          strokeWidth={radius * 2}
+                          strokeDasharray={`${paidDash} ${circumference - paidDash}`}
+                          transform={`rotate(${ -90 + (receivedPct * 360) })`}
+                          strokeLinecap="butt"
+                        />
+                        <text x="0" y="6" textAnchor="middle" className="text-sm font-semibold" fill="#111827">
+                          {formatCurrency(received + paid)}
+                        </text>
+                      </g>
+                    </svg>
 
-                      <div className="flex flex-col gap-3 justify-center items-start">
+                      <div className="flex flex-col gap-3">
                         <div>
                           <div className="flex items-center mb-2">
                             <span className="w-3 h-3 inline-block mr-2 rounded-full bg-green-500" />
@@ -240,8 +226,8 @@ const Reports: React.FC = () => {
                       <div className="text-sm font-medium text-secondary-600 mb-2">Saldos por Conta</div>
                       <div>
                         <div className="space-y-2 max-h-44 overflow-auto pr-2">
-                          {financeAccounts && financeAccounts.length > 0 ? (
-                            financeAccounts.map((b: any) => (
+                          {financeBanks && financeBanks.length > 0 ? (
+                            financeBanks.map((b: any) => (
                               <div key={b.id} className="text-sm text-secondary-800">
                                 <div className="font-medium truncate">{b.name}</div>
                                 <div className="text-xs text-secondary-500">ID: {b.id} — {formatCurrency(Number(b.balance ?? 0))}</div>
@@ -257,7 +243,7 @@ const Reports: React.FC = () => {
                           <div className="text-sm text-secondary-600">Total em Bancos</div>
                           <div className="text-lg font-semibold text-secondary-900">
                             {formatCurrency(
-                              (financeAccounts || []).reduce((s: number, b: any) => s + Number(b.balance ?? 0), 0)
+                              (financeBanks || []).reduce((s: number, b: any) => s + Number(b.balance ?? 0), 0)
                             )}
                           </div>
                         </div>

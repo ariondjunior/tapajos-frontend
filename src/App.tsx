@@ -34,17 +34,7 @@ const AppContent: React.FC = () => {
 
                 {/* Navigation */}
                 <nav className="flex-1 px-4 py-6 space-y-2">
-                  <Link
-                    to="/"
-                    className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
-                      location.pathname === '/' 
-                        ? 'bg-primary-50 text-primary-700' 
-                        : 'text-secondary-700 hover:bg-secondary-50'
-                    }`}
-                  >
-                    <Home className="h-5 w-5 mr-3" />
-                    Dashboard
-                  </Link>
+
                   <Link
                     to="/entities"
                     className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
@@ -131,7 +121,7 @@ const AppContent: React.FC = () => {
             <main className="flex-1 overflow-auto">
               <div className="container mx-auto px-6 py-8">
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/" element={<Reports />} />
                   <Route path="/entities" element={<ClientsSuppliers />} />
                   <Route path="/banks" element={<Banks />} />
                   <Route path="/payables" element={<Payables />} />

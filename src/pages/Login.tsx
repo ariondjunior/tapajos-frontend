@@ -31,7 +31,7 @@ const Login: React.FC = () => {
     try {
       setLoginError('');
       await login(data);
-      navigate('/dashboard');
+      navigate('/');
     } catch (error: any) {
       setLoginError(error.message || 'Erro ao fazer login');
     }

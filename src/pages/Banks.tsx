@@ -116,20 +116,44 @@ const Banks: React.FC = () => {
     setShowModal(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este banco?')) {
-      try {
-        const bank = banks.find(b => b.id === id);
-        if (bank) {
-          bank.isActive = false;
-          filterData();
-        }
-      } catch (error) {
-        console.error('Erro ao excluir:', error);
-        alert('Erro ao excluir banco');
-      }
+const handleDelete = async (id: string) => {
+  const userId = Number(id);
+  if (Number.isNaN(userId)) {
+    alert('ID inválido para exclusão.');
+    return;
+  }
+
+ if (window.confirm(`Tem certeza que deseja excluir o banco com ID ${id}?`)) {
+  try {
+    await api.delete(`/conta/${id}`, {
+      params: { userId },
+    });
+
+    const bank = banks.find(b => b.id === id);
+    if (bank) {
+      bank.isActive = false;
+      filterData();
     }
-  };
+
+    alert('Banco excluído com sucesso!');
+  } catch (error: any) {
+    console.error('Erro ao excluir:', error);
+
+    if (error.response) {
+      if (error.response.status === 409) {
+        alert(error.response.data || 'Não é possível excluir este banco, pois ele está vinculado a outros registros.');
+      } else if (error.response.status === 500) {
+        alert('Erro interno no servidor. Verifique se o banco não está vinculado a outra entidade.');
+      } else {
+        alert(`Erro (${error.response.status}): ${error.response.data || 'Falha desconhecida ao excluir o banco.'}`);
+      }
+    } else {
+      alert('Erro ao conectar com o servidor. Verifique sua conexão.');
+    }
+  }
+}
+
+};
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -497,7 +521,7 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSel
                     type="number"
                     step="0.01"
                     value={formData.currentBalance}
-                    onChange={(e) => setFormData({ ...formData, currentBalance: parseFloat(e.target.value) || 0 })}
+                    onChange={(e) => setFormData({ ...formData, currentBalance: parseFloat(e.target.value) })}
                     className="input-field"
                   />
                 </div>
