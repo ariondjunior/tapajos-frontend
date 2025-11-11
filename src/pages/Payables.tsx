@@ -442,6 +442,18 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     if (!form.usuario.trim()) return setError('Informe o usuário');
     if (!form.valorPagar || Number(form.valorPagar) <= 0) return setError('Informe um valor válido');
 
+    //Verifica saldo da da conta e guarda os valores
+    const response = await api.get(`/conta/${contaId}`);
+    const conta = response.data;
+
+    if (!conta) return setError('Conta não encontrada');
+    const saldo = Number(conta.saldo);
+    const valorPagar = Number(form.valorPagar);
+    console.log('Conta recebida:', conta);
+    console.log('Saldo lido:', conta.saldo);
+    
+    
+
     const payload = {
       ...(item ? { idContaPagar: Number(item.id) } : {}),
       valorPagar: Number(form.valorPagar),
@@ -461,7 +473,9 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
       if (item) {
         await api.put(`/pagar/${Number(item.id)}`, payload);
         alert('Conta a pagar atualizada com sucesso!');
-      } else {
+      } //Tratamento de erro com verificação do saldo
+      else if (valorPagar > saldo) return setError(`Saldo insuficiente. Saldo disponível: R$ ${saldo.toFixed(2)}`);
+      else {
         await api.post('/pagar', payload);
         alert('Conta a pagar criada com sucesso!');
       }

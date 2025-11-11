@@ -228,15 +228,29 @@ const Reports: React.FC = () => {
                 };
 
                 const chartOptions: any = {
+                  maintainAspectRatio: false,
                   plugins: {
-                    legend: { position: 'bottom' as const }
-                  },
-                  maintainAspectRatio: false
+                    legend: {
+                      position: 'bottom',
+                      labels: {
+                        usePointStyle: true,   // faz usar estilo de ponto (não retângulo)
+                        pointStyle: 'circle',  // deixa os ícones da legenda redondos
+                        boxWidth: 10,          // tamanho da bolinha
+                        padding: 10,
+                        font: {
+                          size: 11
+                        },
+                        color: '#333',
+                        align: 'center'
+                          // alinha as legendas
+                      }
+                    }
+                  }
                 };
 
                 return (
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-                    <div className="flex items-center gap-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div className="flex items-center gap-6 ">
                       <div style={{ width: 140, height: 140 }} className="flex-shrink-0">
                         <Pie data={chartData} options={chartOptions} />
                       </div>
