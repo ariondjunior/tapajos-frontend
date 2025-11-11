@@ -4,19 +4,17 @@ import { AuthProvider } from './contexts/AuthContext';
 import { FinanceProvider } from './contexts/FinanceContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
 import ClientsSuppliers from './pages/ClientsSuppliers';
 import Banks from './pages/Banks';
-import PayablesReceivables from './pages/PayablesReceivables';
 import Payables from './pages/Payables';
 import Receivables from './pages/Receivables';
 import Reports from './pages/Reports';
-import Users from './pages/Users';
 import { Home, Users as UsersIcon, Building2, FileText, TrendingUp, BarChart3, LogOut, User } from 'lucide-react';
+import { useAuth } from './contexts/AuthContext';
 
-// Componente interno que usa useLocation
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const { user, logout } = useAuth();
 
   return (
     <Routes>
@@ -99,12 +97,12 @@ const AppContent: React.FC = () => {
                       <User className="h-5 w-5 text-primary-600" />
                     </div>
                     <div className="ml-3 flex-1">
-                      <p className="text-sm font-medium text-secondary-900">Usuário</p>
-                      <p className="text-xs text-secondary-500">Administrador</p>
+                      <p className="text-sm font-medium text-secondary-900">{user?.name ?? 'Usuário'}</p>
+                      <p className="text-xs text-secondary-500">{user?.role ?? 'Usuário Teste'}</p>
                     </div>
                     <button
                       onClick={() => {
-                        localStorage.removeItem('token');
+                        logout();
                         window.location.href = '/login';
                       }}
                       className="p-2 text-secondary-400 hover:text-red-600 transition-colors"

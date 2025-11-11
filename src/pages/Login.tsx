@@ -137,14 +137,14 @@ const Login: React.FC = () => {
           {/* Informações de demo */}
           <div className="mt-6 p-4 bg-secondary-50 rounded-lg">
             <h3 className="text-sm font-medium text-secondary-900 mb-2">
-              Credenciais de Demonstração:
+              Usuários cadastrados:
             </h3>
             <div className="text-sm text-secondary-600 space-y-1">
               <p><strong>Administrador:</strong></p>
               <p>Email: admin@tapajos.com</p>
               <p>Senha: 123456</p>
               <p className="mt-2"><strong>Usuário:</strong></p>
-              <p>Email: user@tapajos.com</p>
+              <p>Email: felippe@tapajos.com</p>
               <p>Senha: 123456</p>
             </div>
           </div>

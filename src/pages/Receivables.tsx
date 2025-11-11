@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit, Trash2, CheckCircle, Clock, AlertCircle, X } from 'lucide-react';
 import api from '../services/api';
 import axios from 'axios';
@@ -575,6 +576,8 @@ const CreateReceivableModal: React.FC<{
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { user: authUser } = useAuth();
+
   // Empresa (autocomplete)
   const [companyQuery, setCompanyQuery] = useState('');
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
@@ -612,7 +615,7 @@ const CreateReceivableModal: React.FC<{
       descricaoReceber: '',
       valorReceber: '',
       formaPagamento: '',
-      usuario: '',
+      usuario: authUser?.name || '',
       dataEmissao: '',
       dataVencimento: '',
       dataRec: '',
@@ -733,6 +736,8 @@ const CreateReceivableModal: React.FC<{
     const empresaId = selectedCompany?.id;
     const contaId = selectedAccount?.idConta;
 
+    const usuarioValue = (authUser?.name || form.usuario || '').trim();
+
     // Validações mínimas
     if (!empresaId) return setError('Selecione a empresa (cliente)');
     if (!contaId) return setError('Selecione a conta bancária');
@@ -740,7 +745,7 @@ const CreateReceivableModal: React.FC<{
     if (!form.formaPagamento) return setError('Informe a forma de pagamento');
     if (!form.dataEmissao) return setError('Informe a data de emissão');
     if (!form.dataVencimento) return setError('Informe a data de vencimento');
-    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
 
     const payload = {
@@ -750,7 +755,7 @@ const CreateReceivableModal: React.FC<{
       dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
       descricaoReceber: form.descricaoReceber,
       formaPagamento: form.formaPagamento,
-      usuario: form.usuario,
+      usuario: usuarioValue,
       empresa: { idEmpresa: Number(empresaId) },
       conta: { idConta: Number(contaId) },
     };
@@ -941,10 +946,11 @@ const CreateReceivableModal: React.FC<{
               >
                 <option value="">Selecione</option>
                 <option value="DINHEIRO">Dinheiro</option>
-                <option value="PIX">PIX</option>
                 <option value="BOLETO">Boleto</option>
-                <option value="CARTAO">Cartão</option>
-                <option value="TRANSFERENCIA">Transferência</option>
+                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                <option value="TRANSFE_BANCARIA">Transferência Bancária</option>
+                <option value="PIX">PIX</option>
               </select>
             </div>
           </div>
@@ -992,12 +998,12 @@ const CreateReceivableModal: React.FC<{
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Usuário *</label>
-              <input
-                type="text"
-                value={form.usuario}
-                onChange={(e) => setForm({ ...form, usuario: e.target.value })}
-                className="input-field"
-              />
+                <input
+                  type="text"
+                  value={form.usuario || ''}
+                  readOnly
+                  className="input-field bg-gray-50 cursor-not-allowed"
+                />
             </div>
           </div>
 
@@ -1030,6 +1036,8 @@ const EditReceivableModal: React.FC<{
 }> = ({ open, item, onClose, onSaved }) => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { user: authUser } = useAuth();
 
   // Empresa (autocomplete)
   const [companyQuery, setCompanyQuery] = useState('');
@@ -1076,6 +1084,8 @@ const EditReceivableModal: React.FC<{
 
     console.debug('[submitEdit] Iniciando update para id:', item.id);
 
+    const usuarioValue = (authUser?.name || form.usuario || '').trim();
+
     // Validações mínimas (entidade exige @NotNull/@NotBlank e @ManyToOne(optional=false))
     if (!empresaId) return setError('Selecione a empresa');
     if (!contaId) return setError('Selecione a conta bancária');
@@ -1083,7 +1093,7 @@ const EditReceivableModal: React.FC<{
     if (!form.formaPagamento) return setError('Informe a forma de pagamento');
     if (!form.dataEmissao) return setError('Informe a data de emissão');
     if (!form.dataVencimento) return setError('Informe a data de vencimento');
-    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
 
     // ✅ envia no formato da entidade (com id no path e no corpo)
@@ -1096,7 +1106,7 @@ const EditReceivableModal: React.FC<{
       dataRec: form.dataRec ? inputToDateTime(form.dataRec) : null,
       descricaoReceber: form.descricaoReceber,
       formaPagamento: form.formaPagamento,
-      usuario: form.usuario,
+      usuario: usuarioValue,
       empresa: { idEmpresa: Number(empresaId) },
       conta: { idConta: Number(contaId) },
     };
@@ -1131,7 +1141,8 @@ const EditReceivableModal: React.FC<{
       descricaoReceber: item.description || '',
       valorReceber: String(item.amount ?? ''),
       formaPagamento: item.paymentMethod || '',
-      usuario: item.user || '',
+      // prefer session user when editing, fallback to item.user
+      usuario: authUser?.name || item.user || '',
       dataEmissao: dateToInput(item.issueDate),
       dataVencimento: dateToInput(item.dueDate),
       dataRec: item.paymentDate ? dateToInput(item.paymentDate) : '',
@@ -1404,10 +1415,11 @@ const EditReceivableModal: React.FC<{
               >
                 <option value="">Selecione</option>
                 <option value="DINHEIRO">Dinheiro</option>
-                <option value="PIX">PIX</option>
                 <option value="BOLETO">Boleto</option>
-                <option value="CARTAO">Cartão</option>
-                <option value="TRANSFERENCIA">Transferência</option>
+                <option value="CARTAO_DEBITO">Cartão Débito</option>
+                <option value="CARTAO_CREDITO">Cartão Crédito</option>
+                <option value="TRANSFE_BANCARIA">Transferência Bancária</option>
+                <option value="PIX">PIX</option>
               </select>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useFinance } from '../context/finance'
-import { useAuth } from '../context/auth'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Entries(){
   const { entities, banks, entries, addEntry, payEntry } = useFinance()
@@ -19,7 +19,7 @@ export default function Entries(){
     setIsSubmitting(true)
     try {
       addEntry({ 
-        user: user.username, 
+        user: user.name, 
         entityId: entityId || undefined, 
         bankId: bankId || undefined, 
         type, 
@@ -335,7 +335,7 @@ export default function Entries(){
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {!entry.paid && (
                               <button
-                                onClick={() => user && payEntry(entry.id, user.username)}
+                                onClick={() => user && payEntry(entry.id, user.name)}
                                 className="bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
                               >
                                 Marcar Pago

@@ -1,13 +1,12 @@
 // using automatic JSX runtime
 import { Link } from 'react-router-dom'
 import { useFinance } from '../context/finance'
-import { useAuth } from '../context/auth'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function Home(){
   const { entities, banks, entries } = useFinance()
   const { user } = useAuth()
 
-  // Estatísticas calculadas
   const totalBanks = banks.length
   const totalBalance = banks.reduce((sum, bank) => sum + bank.balance, 0)
   const totalEntities = entities.length

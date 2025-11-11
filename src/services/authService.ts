@@ -46,8 +46,8 @@ const mockUsers: User[] = [
   },
   {
     id: '2',
-    name: 'Usuário Teste',
-    email: 'user@tapajos.com',
+    name: 'Felippe',
+    email: 'felippe@tapajos.com',
     role: 'user',
     createdAt: new Date(),
     isActive: true

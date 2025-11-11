@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit, Trash2, CheckCircle, Clock, AlertCircle, Eye, X } from 'lucide-react';
 import api from '../services/api';
 import axios from 'axios';
@@ -265,6 +266,8 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     dataPag: '',
   });
 
+  const { user: authUser } = useAuth();
+
   const dateToInput = (d?: Date | null) => {
     if (!d) return '';
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -284,7 +287,7 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
         descricaoPagar: item.description || '',
         valorPagar: String(item.amount ?? ''),
         formaPagamento: '',
-        usuario: item.user || '',
+        usuario: item.user || authUser?.name || '',
         dataEmissao: dateToInput(item.issueDate),
         dataVencimento: dateToInput(item.dueDate),
         dataPag: item.paymentDate ? dateToInput(item.paymentDate) : '',
@@ -315,7 +318,7 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
         descricaoPagar: '',
         valorPagar: '',
         formaPagamento: '',
-        usuario: '',
+        usuario: authUser?.name || '',
         dataEmissao: '',
         dataVencimento: '',
         dataPag: '',
@@ -433,26 +436,24 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     const contaId = getContaId();
 
     // Validações mínimas
+    const usuarioValue = (authUser?.name || form.usuario || '').trim();
+
     if (!empresaId) return setError('Selecione o fornecedor (empresa)');
     if (!contaId) return setError('Selecione a conta bancária');
     if (!form.descricaoPagar.trim()) return setError('Informe a descrição');
     if (!form.formaPagamento) return setError('Informe a forma de pagamento');
     if (!form.dataEmissao) return setError('Informe a data de emissão');
     if (!form.dataVencimento) return setError('Informe a data de vencimento');
-    if (!form.usuario.trim()) return setError('Informe o usuário');
+    if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorPagar || Number(form.valorPagar) <= 0) return setError('Informe um valor válido');
 
-    //Verifica saldo da da conta e guarda os valores
+    // Verifica saldo da conta e guarda os valores
     const response = await api.get(`/conta/${contaId}`);
     const conta = response.data;
 
     if (!conta) return setError('Conta não encontrada');
     const saldo = Number(conta.saldo);
     const valorPagar = Number(form.valorPagar);
-    console.log('Conta recebida:', conta);
-    console.log('Saldo lido:', conta.saldo);
-    
-    
 
     const payload = {
       ...(item ? { idContaPagar: Number(item.id) } : {}),
@@ -462,7 +463,8 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
       dataEmissao: inputToDateTime(form.dataEmissao),
       dataPag: form.dataPag ? inputToDateTime(form.dataPag) : null,
       descricaoPagar: form.descricaoPagar,
-      usuario: form.usuario,
+      // Prefer logged-in session user, fallback to form value
+      usuario: usuarioValue,
       empresa: { idEmpresa: Number(empresaId) },
       conta: { idConta: Number(contaId) },
     };
@@ -599,7 +601,7 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
                 <option value="BOLETO">Boleto</option>
                 <option value="CARTAO_DEBITO">Cartão Débito</option>
                 <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="TRANSFERENCIA_BANCARIA">Transferência Bancária</option>
+                <option value="TRANSFE_BANCARIA">Transferência Bancária</option>
                 <option value="PIX">PIX</option>
               </select>
             </div>
@@ -626,8 +628,12 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
               <input type="number" step="0.01" value={form.valorPagar} onChange={(e) => setForm({ ...form, valorPagar: e.target.value })} className="input-field" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Usuário *</label>
-              <input type="text" value={form.usuario} onChange={(e) => setForm({ ...form, usuario: e.target.value })} className="input-field" />
+              <label className="block text-sm font-medium mb-1">Usuário</label>
+              <input 
+                type="text" 
+                value={form.usuario || ''} 
+                readOnly 
+                className="input-field bg-gray-50 cursor-not-allowed" />
             </div>
           </div>
 
