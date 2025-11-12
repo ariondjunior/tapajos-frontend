@@ -601,7 +601,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
                 <option value="BOLETO">Boleto</option>
                 <option value="CARTAO_DEBITO">Cartão Débito</option>
                 <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="TRANSFE_BANCARIA">Transferência Bancária</option>
                 <option value="PIX">PIX</option>
               </select>
             </div>

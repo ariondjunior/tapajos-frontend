@@ -949,7 +949,6 @@ const CreateReceivableModal: React.FC<{
                 <option value="BOLETO">Boleto</option>
                 <option value="CARTAO_DEBITO">Cartão Débito</option>
                 <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="TRANSFE_BANCARIA">Transferência Bancária</option>
                 <option value="PIX">PIX</option>
               </select>
             </div>
@@ -1418,7 +1417,6 @@ const EditReceivableModal: React.FC<{
                 <option value="BOLETO">Boleto</option>
                 <option value="CARTAO_DEBITO">Cartão Débito</option>
                 <option value="CARTAO_CREDITO">Cartão Crédito</option>
-                <option value="TRANSFE_BANCARIA">Transferência Bancária</option>
                 <option value="PIX">PIX</option>
               </select>
             </div>
