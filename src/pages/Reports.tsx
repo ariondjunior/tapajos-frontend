@@ -18,7 +18,6 @@ const Reports: React.FC = () => {
 
   const [clientSuppliers, setClientSuppliers] = useState<ClientSupplier[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
-  // bank transactions moved here
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<BankTransaction[]>([]);
   const [txSearchTerm, setTxSearchTerm] = useState('');
@@ -54,23 +53,19 @@ const Reports: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // apply filters to transactions whenever inputs change
     let filtered = transactions.slice();
     if (txFilterBank) filtered = filtered.filter(t => t.bankId === txFilterBank);
     if (txFilterType !== 'all') filtered = filtered.filter(t => t.type === txFilterType);
     if (txSearchTerm) filtered = filtered.filter(t => (t.description || '').toLowerCase().includes(txSearchTerm.toLowerCase()));
-    // sort by newest
     filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     setFilteredTransactions(filtered);
   }, [transactions, txSearchTerm, txFilterBank, txFilterType]);
 
   const loadExtratoDiario = async () => {
     try {
-      // load paginated movimentacoes (full movements) and use the content array
       const page = await movimentacaoService.getMovimentacoes(0, 100);
       const content = page?.content || [];
       setExtratoDiario(content);
-      // also refresh daily summary when loading movimentacoes
       await loadDailySummary();
     } catch (err) {
       console.error('Erro extrato diário', err);
@@ -82,9 +77,7 @@ const Reports: React.FC = () => {
     try {
       setLoadingDaily(true);
       const res = await movimentacaoService.getExtratoDiario();
-      // expect array like [{ tipo: 'Pago', valor: 800.00 }, { tipo: 'Recebido', valor: null }]
       setDailySummary(res || []);
-      // refresh bank accounts from backend (/conta) so balances are up-to-date
       try {
         const PAGE_SIZE = 100;
         const first = await api.get('/conta', { params: { page: 0, size: PAGE_SIZE } });
@@ -193,7 +186,6 @@ const Reports: React.FC = () => {
       </div>
 
       <div className="card">
-        {/* Extrato do Dia - gráfico de pizza */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center">
@@ -233,16 +225,15 @@ const Reports: React.FC = () => {
                     legend: {
                       position: 'bottom',
                       labels: {
-                        usePointStyle: true,   // faz usar estilo de ponto (não retângulo)
-                        pointStyle: 'circle',  // deixa os ícones da legenda redondos
-                        boxWidth: 10,          // tamanho da bolinha
+                        usePointStyle: true,  
+                        pointStyle: 'circle',  
+                        boxWidth: 10,         
                         padding: 10,
                         font: {
                           size: 11
                         },
                         color: '#333',
                         align: 'center'
-                          // alinha as legendas
                       }
                     }
                   }
@@ -270,7 +261,6 @@ const Reports: React.FC = () => {
 
                     </div>
 
-                    {/* Right column: bank balances */}
                     <div className="md:w-1/3 md:pl-6 md:border-l md:border-secondary-200">
                       <div className="text-sm font-medium text-secondary-600 mb-2">Saldos por Conta</div>
                       <div>
@@ -287,7 +277,6 @@ const Reports: React.FC = () => {
                           )}
                         </div>
 
-                        {/* Total balance */}
                         <div className="mt-3 pt-3 border-t border-secondary-200">
                           <div className="text-sm text-secondary-600">Total em Bancos</div>
                           <div className="text-lg font-semibold text-secondary-900">
@@ -315,7 +304,6 @@ const Reports: React.FC = () => {
           </div>
         </div>
 
-        {/* Resumo das movimentações (igual à sessão de baixo) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
           <div className="card p-4">
             <p className="text-sm font-medium text-secondary-600">Total Créditos</p>
@@ -393,7 +381,6 @@ const Reports: React.FC = () => {
             </div>
           </div>
 
-          {/* Gráfico do período: mostrar totais Recebido x Pago para o intervalo selecionado */}
           <div className="p-4">
             {extratoPeriodo.length === 0 ? (
               <div className="text-center py-8 text-secondary-500">Nenhuma movimentação para o período</div>
@@ -401,7 +388,6 @@ const Reports: React.FC = () => {
               (() => {
                 const paidItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('pago')) || { valor: null };
                 const receivedItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: null };
-                // If the API returns individual movimentacoes instead of summarized objects, compute sums
                 const totalPaid = extratoPeriodo.reduce((s: number, it: any) => s + (it.tipoDuplicata === 0 || it.tipo === 'pagar' ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
                 const totalReceived = extratoPeriodo.reduce((s: number, it: any) => s + (!(it.tipoDuplicata === 0 || it.tipo === 'pagar') ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
 
@@ -460,7 +446,6 @@ const Reports: React.FC = () => {
           </div>
       </div>
 
-      {/* Movimentações Bancárias (moved from BankTransactions) */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -486,8 +471,6 @@ const Reports: React.FC = () => {
             </select>
           </div>
         </div>
-
-        {/* Resumo removido daqui (movido para a seção superior) */}
 
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-secondary-200">

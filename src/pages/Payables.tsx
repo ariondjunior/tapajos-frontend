@@ -4,7 +4,6 @@ import { Plus, Search, Edit, Trash2, CheckCircle, Clock, AlertCircle, Eye, X } f
 import api from '../services/api';
 import axios from 'axios';
 
-// Tipos da API
 type ContaPagarApi = {
   idContaPagar: number;
   valorPagar: number;
@@ -55,7 +54,6 @@ type PaginatedResponse<T> = {
   last: boolean;
 };
 
-// Tipo local para conta bancária (compatível com dados retornados pela API)
 type BankAccount = {
   idConta: number | string;
   agencia?: string;
@@ -87,7 +85,6 @@ type PayableItem = {
   user: string;
 };
 
-// Modal de visualização (somente leitura)
 interface ViewModalProps {
   item: PayableItem;
   onClose: () => void;
@@ -227,7 +224,6 @@ const ViewModal: React.FC<ViewModalProps> = ({ item, onClose, onEdit }) => {
   );
 };
 
-// Modal de criação/edição no estilo do modal de Conta a Receber
 interface EditModalProps {
   open: boolean;
   item: PayableItem | null;
@@ -239,7 +235,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fornecedor (autocomplete)
   const [supplierQuery, setSupplierQuery] = useState('');
   const [supplierOptions, setSupplierOptions] = useState<Array<{ id: number; name: string }>>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<{ id: number; name: string } | null>(null);
@@ -247,7 +242,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
   const [showSupplierList, setShowSupplierList] = useState(false);
   const [supplierSelectedQuery, setSupplierSelectedQuery] = useState('');
 
-  // Conta (autocomplete)
   const [accountQuery, setAccountQuery] = useState('');
   const [accountOptions, setAccountOptions] = useState<Array<BankAccount>>([]);
   const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
@@ -255,7 +249,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
   const [showAccountList, setShowAccountList] = useState(false);
   const [accountSelectedQuery, setAccountSelectedQuery] = useState('');
 
-  // Form
   const [form, setForm] = useState({
     descricaoPagar: '',
     valorPagar: '',
@@ -281,7 +274,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
   useEffect(() => {
     if (!open) return;
 
-    // Preenche formulário quando editar
     if (item) {
       setForm({
         descricaoPagar: item.description || '',
@@ -313,7 +305,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
       setAccountOptions([]);
       setShowAccountList(false);
     } else {
-      // reset form for creation
       setForm({
         descricaoPagar: '',
         valorPagar: '',
@@ -337,7 +328,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     setError(null);
   }, [open, item]);
 
-  // Busca fornecedores (/empresa?q=)
   useEffect(() => {
     let mounted = true;
     let controller: AbortController | null = null;
@@ -359,7 +349,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
           if (!mounted) return;
           const data = res.data?.content || res.data || [];
           const qLower = q.toLowerCase();
-          // Keep only entries where any of the common name fields contains the query
           const matched = (data as any[]).filter((e: any) => {
             const a = String(e.nomeFantasia ?? '').toLowerCase();
             const b = String(e.razaoSocial ?? '').toLowerCase();
@@ -395,7 +384,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     };
   }, [open, supplierQuery, supplierSelectedQuery, showSupplierList]);
 
-  // Busca contas (/conta?q=)
   useEffect(() => {
     let mounted = true;
     let controller: AbortController | null = null;
@@ -449,7 +437,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     const empresaId = getEmpresaId();
     const contaId = getContaId();
 
-    // Validações mínimas
     const usuarioValue = (authUser?.name || form.usuario || '').trim();
 
     if (!empresaId) return setError('Selecione o fornecedor (empresa)');
@@ -461,7 +448,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorPagar || Number(form.valorPagar) <= 0) return setError('Informe um valor válido');
 
-    // Verifica saldo da conta e guarda os valores
     const response = await api.get(`/conta/${contaId}`);
     const conta = response.data;
 
@@ -477,7 +463,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
       dataEmissao: inputToDateTime(form.dataEmissao),
       dataPag: form.dataPag ? inputToDateTime(form.dataPag) : null,
       descricaoPagar: form.descricaoPagar,
-      // Prefer logged-in session user, fallback to form value
       usuario: usuarioValue,
       empresa: { idEmpresa: Number(empresaId) },
       conta: { idConta: Number(contaId) },
@@ -489,7 +474,7 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
       if (item) {
         await api.put(`/pagar/${Number(item.id)}`, payload);
         alert('Conta a pagar atualizada com sucesso!');
-      } //Tratamento de erro com verificação do saldo
+      } 
       else if (valorPagar > saldo) return setError(`Saldo insuficiente. Saldo disponível: R$ ${saldo.toFixed(2)}`);
       else {
         await api.post('/pagar', payload);
@@ -522,7 +507,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
             <div className="px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm border border-red-200">{error}</div>
           )}
 
-          {/* Fornecedor */}
           <div>
             <label className="block text-sm font-medium mb-1">Fornecedor (Empresa) *</label>
             <div className="relative">
@@ -557,7 +541,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
             </div>
           </div>
 
-          {/* Conta */}
           <div>
             <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
             <div className="relative">
@@ -601,7 +584,6 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
             </div>
           </div>
 
-          {/* Campos principais */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Descrição</label>
@@ -677,13 +659,11 @@ const Payables: React.FC = () => {
   const [emissaoStart, setEmissaoStart] = useState<string>('');
   const [vencimentoEnd, setVencimentoEnd] = useState<string>('');
 
-  // Estados de paginação
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize, setPageSize] = useState(10); // Agora é state
+  const [pageSize, setPageSize] = useState(10); 
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
-  // Buscar fornecedores (usar /empresa)
   const loadSuppliers = async () => {
     try {
       const res = await api.get('/empresa', { params: { page: 0, pageSize: 50 } });
@@ -695,14 +675,12 @@ const Payables: React.FC = () => {
           name: e.nomeFantasia || e.razaoSocial,
         }))
       );
-      // also store all companies for filtering
       setCompanies(empresas.map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia || e.razaoSocial || e.nome, tipoEmpresa: e.tipoEmpresa })));
     } catch (error) {
       console.error('Erro ao carregar fornecedores (/empresa):', error);
     }
   };
 
-  // Buscar contas bancárias (usar /conta)
   const loadAccounts = async () => {
     try {
       const res = await api.get('/conta', { params: { page: 0, pageSize: 100 } });
@@ -718,7 +696,6 @@ const Payables: React.FC = () => {
     }
   };
 
-  // load companies independently (if not loaded by loadSuppliers)
   const loadCompanies = async () => {
     try {
       const res = await api.get('/empresa', { params: { page: 0, pageSize: 200 } });
@@ -729,20 +706,14 @@ const Payables: React.FC = () => {
     }
   };
 
-  // Evitar requisição no mount: só quando o modal abrir
   useEffect(() => {
     if (showEditModal) {
       if (suppliers.length === 0) loadSuppliers();
       if (accounts.length === 0) loadAccounts();
     }
-    // ensure companies available for header filters even if modal never opened
     if (companies.length === 0) loadCompanies();
   }, [showEditModal]);
 
-  // Removido o useEffect inicial que carregava automaticamente
-  // useEffect(() => {
-  //   handleSearch(0);
-  // }, []);
 
   const mapContaPagarToPayable = (c: ContaPagarApi): PayableItem => {
     
@@ -751,7 +722,6 @@ const Payables: React.FC = () => {
     const isPaid = c.dataPag !== null;
     const isOverdue = !isPaid && dueDate < today;
 
-    // Verificar se empresa e conta existem
     if (!c.empresa) {
       console.warn('Conta sem empresa:', c);
     }
@@ -831,7 +801,6 @@ const Payables: React.FC = () => {
       );
     }
 
-    // company type filter (cliente/fornecedor)
     if (companyFilterType !== 'all') {
       filtered = filtered.filter(item => {
         const comp = companies.find(c => Number(c.id) === Number(item.supplierId));
@@ -871,9 +840,6 @@ const Payables: React.FC = () => {
     }
   };
 
-  // Single entry point: the magnifying glass button (and Enter) will call this.
-  // If both emissaoStart and vencimentoEnd are provided, do the period search,
-  // otherwise do the normal paginated listing.
   const handleSearchOrPeriod = async () => {
     if (emissaoStart && vencimentoEnd) {
       await handleLoadPeriod();
@@ -882,16 +848,14 @@ const Payables: React.FC = () => {
     }
   };
 
-  // Re-apply local filters when relevant inputs change
   useEffect(() => {
-    // run filter against current payables
     filterData(payables);
   }, [companyFilterType, searchTerm, filterStatus, payables]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
     if (hasSearched) {
-      handleSearch(0, newSize); // Reinicia na página 0 com novo tamanho
+      handleSearch(0, newSize);
     }
   };
 
@@ -985,7 +949,6 @@ const Payables: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Contas a Pagar</h1>
@@ -997,7 +960,6 @@ const Payables: React.FC = () => {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="card">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           <div className="md:col-span-6">
@@ -1056,7 +1018,6 @@ const Payables: React.FC = () => {
           </div>
         </div>
 
-        {/* Período e filtros por empresa */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-3">
           <div className="md:col-span-3">
             <label className="block text-xs text-secondary-600 mb-1">Emissão (início)</label>
@@ -1076,18 +1037,15 @@ const Payables: React.FC = () => {
             </select>
           </div>
 
-          {/* Empresa filter removed per request (use Tipo Empresa only) */}
         </div>
       </div>
 
-      {/* Mostra loading durante pesquisa */}
       {loading && (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
       )}
 
-      {/* Mostra mensagem se não pesquisou ainda */}
       {!hasSearched && !loading && (
         <div className="card">
           <div className="flex flex-col items-center justify-center py-12">
@@ -1098,7 +1056,6 @@ const Payables: React.FC = () => {
         </div>
       )}
 
-      {/* Resumo - só aparece após pesquisa */}
       {hasSearched && !loading && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1153,7 +1110,6 @@ const Payables: React.FC = () => {
             </div>
           </div>
 
-          {/* Tabela - só aparece após pesquisa */}
           <div className="card">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-secondary-200">
@@ -1260,7 +1216,6 @@ const Payables: React.FC = () => {
               </table>
             </div>
 
-            {/* Paginação - só aparece se houver dados */}
             {filteredData.length > 0 && (
               <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-secondary-200 sm:px-6">
                 <div className="flex-1 flex justify-between sm:hidden">
@@ -1337,7 +1292,6 @@ const Payables: React.FC = () => {
         </>
       )}
 
-      {/* Modal de Visualização */}
       {showViewModal && selectedItem && (
         <ViewModal
           item={selectedItem}
@@ -1352,7 +1306,6 @@ const Payables: React.FC = () => {
         />
       )}
 
-      {/* Modal de Edição/Criação */}
       {showEditModal && (
         <EditModal
           open={showEditModal}

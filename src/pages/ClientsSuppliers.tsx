@@ -5,14 +5,13 @@ import { ClientSupplier, User } from '../types';
 import api from '../services/api';
 import axios from 'axios';
 
-// Tipo do payload retornado pela API de /empresa
 type EmpresaApi = {
   idEmpresa: number;
   razaoSocial: string;
   nomeFantasia: string;
-  tipoEmpresa: number; // 0 = CLIENTE, 1 = FORNECEDOR, 2 = AMBOS
+  tipoEmpresa: number; 
   cpfCnpj: string;
-  tipoPessoa: number; // 0 = FISICA, 1 = JURIDICA (assumindo)
+  tipoPessoa: number;
   email: string;
   telefone: string;
   ruaEmpresa: string;
@@ -24,7 +23,6 @@ type EmpresaApi = {
   cidadeEmpresa?: string;
 };
 
-// Tipo da resposta paginada da API
 type PaginatedResponse<T> = {
   content: T[];
   pageable: {
@@ -58,15 +56,14 @@ const ClientsSuppliers: React.FC = () => {
   const [clientsSuppliers, setClientsSuppliers] = useState<ClientSupplier[]>([]);
   const [filteredData, setFilteredData] = useState<ClientSupplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'client' | 'supplier' | 'both'>('all'); // adicionado 'both'
+  const [filterType, setFilterType] = useState<'all' | 'client' | 'supplier' | 'both'>('all'); 
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState<ClientSupplier | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   
-  // Estados de paginação (pageSize fixo em 10)
   const [currentPage, setCurrentPage] = useState(0);
-  const pageSize = 10; // fixo, não precisa de state
+  const pageSize = 10;
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
 
@@ -77,31 +74,23 @@ const ClientsSuppliers: React.FC = () => {
         const u = await userService.getCurrentUser();
         if (mounted) setCurrentUser(u);
       } catch (err) {
-        // já logado no serviço; não propagar erro para não quebrar render
         console.error('Erro ao obter usuário atual:', err);
       }
     })();
     return () => { mounted = false };
   }, []);
 
-  // remove o carregamento automático
-  // useEffect(() => {
-  //   loadData();
-  // }, []);
 
-  // normaliza o número tipoEmpresa para os valores usados na UI
   const toTypeCorporate = (v: number): 'client' | 'supplier' | 'both' => {
-    if (v === 1) return 'supplier'; // FORNECEDOR
-    if (v === 2) return 'both';     // AMBOS
-    return 'client';                 // CLIENTE (0 ou qualquer outro)
+    if (v === 1) return 'supplier';
+    if (v === 2) return 'both';     
+    return 'client';             
   };
 
-  // normaliza tipoPessoa
   const toTypePerson = (v: number): 'individual' | 'company' => {
-    return v === 1 ? 'company' : 'individual'; // 1 = JURIDICA, 0 = FISICA
+    return v === 1 ? 'company' : 'individual';
   };
 
-  // Mapeia EmpresaApi -> ClientSupplier
   const mapEmpresaToClientSupplier = (e: EmpresaApi): ClientSupplier => ({
     id: String(e.idEmpresa),
     tradeName: e.nomeFantasia,
@@ -122,11 +111,9 @@ const ClientsSuppliers: React.FC = () => {
     isActive: true,
   });
 
-  // Busca ao clicar em "Pesquisar" ou mudar página
   const handleSearch = async (page: number = 0) => {
     setLoading(true);
     try {
-      // Garante que page é número
       const pageNum = Number(page);
       
       console.log('Buscando com params:', { page: pageNum, size: pageSize });
@@ -164,10 +151,8 @@ const ClientsSuppliers: React.FC = () => {
     }
   };
 
-  // Carrega os dados ao montar o componente (página 0)
   useEffect(() => {
     handleSearch(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -204,7 +189,6 @@ const ClientsSuppliers: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    // usa o id do item como userId
     const userId = Number(id);
     if (Number.isNaN(userId)) {
       alert('ID inválido para exclusão.');
@@ -217,7 +201,7 @@ const ClientsSuppliers: React.FC = () => {
           params: { userId },
         });
         alert('Item excluído com sucesso');
-        handleSearch(); // recarrega os dados
+        handleSearch(); 
       } catch (error) {
         console.error('Erro ao excluir:', error);
         alert('Erro ao excluir item');
@@ -238,7 +222,6 @@ const ClientsSuppliers: React.FC = () => {
     return new Intl.DateTimeFormat('pt-BR').format(date);
   };
 
-  // Funções de navegação de página
   const handlePreviousPage = () => {
     if (currentPage > 0) {
       handleSearch(currentPage - 1);
@@ -255,12 +238,10 @@ const ClientsSuppliers: React.FC = () => {
     handleSearch(page);
   };
 
-  // Handler para o botão de pesquisa (não recebe parâmetro)
   const handleSearchClick = () => {
-    handleSearch(0); // reseta para página 0 ao pesquisar
+    handleSearch(0);
   };
 
-  // Gera array de páginas para exibir
   const getPageNumbers = () => {
     const pages: number[] = [];
     const maxVisible = 5;
@@ -289,7 +270,6 @@ const ClientsSuppliers: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Clientes e Fornecedores</h1>
@@ -304,7 +284,6 @@ const ClientsSuppliers: React.FC = () => {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="card">
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
@@ -339,7 +318,6 @@ const ClientsSuppliers: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabela */}
       <div className="card">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-secondary-200">
@@ -419,7 +397,6 @@ const ClientsSuppliers: React.FC = () => {
           </table>
         </div>
 
-        {/* Controles de Paginação */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-secondary-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
             <button
@@ -492,7 +469,6 @@ const ClientsSuppliers: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal */}
       {showModal && (
         <ClientSupplierModal
           item={editingItem}
@@ -500,7 +476,7 @@ const ClientsSuppliers: React.FC = () => {
           onClose={() => setShowModal(false)}
           onSave={() => {
             setShowModal(false);
-            handleSearch(); // recarrega a página atual
+            handleSearch(); 
           }}
         />
       )}
@@ -508,7 +484,6 @@ const ClientsSuppliers: React.FC = () => {
   );
 };
 
-// Modal para criar/editar cliente/fornecedor
 interface ClientSupplierModalProps {
   item: ClientSupplier | null;
   onClose: () => void;
@@ -520,7 +495,6 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
   const [formData, setFormData] = useState({
     tradeName: '',
     corporateName: '',
-    // alterado: usar valores em PT-BR para alinhar com o <select>
     typeCorporate: 'CLIENTE' as 'CLIENTE' | 'FORNECEDOR' | 'AMBOS',
     typePerson: 'individual' as 'individual' | 'company',
     document: '',
@@ -536,16 +510,12 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
     isActive: true,
   });
 
-  // currentUser is passed from parent to avoid calling service synchronously here
-  // fallback: null
-  // const currentUser = userService.getCurrentUser();
 
   useEffect(() => {
     if (item) {
       setFormData({
         tradeName: item.tradeName,
         corporateName: item.corporateName,
-        // mapeia 'client' | 'supplier' | 'both' -> 'CLIENTE' | 'FORNECEDOR' | 'AMBOS'
         typeCorporate: toTipoEmpresa(item.typeCorporate),
         typePerson: item.typePerson,
         document: item.document,
@@ -569,29 +539,25 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
     return d ? parseInt(d, 10) : null;
   };
   
-  // Converte 'CLIENTE'/'FORNECEDOR'/'AMBOS' para número (0/1/2)
   const toTipoEmpresaNumero = (v: string): number => {
     const s = String(v ?? '').toUpperCase();
     if (s === 'FORNECEDOR') return 1;
     if (s === 'AMBOS') return 2;
-    return 0; // CLIENTE
+    return 0; 
   };
   
-  // Converte 'FISICA'/'JURIDICA' ou 'individual'/'company' para número (0/1)
   const toTipoPessoaNumero = (v: string): number => {
     const s = String(v ?? '').toUpperCase();
     if (s === 'COMPANY' || s === 'JURIDICA') return 1;
-    return 0; // FISICA/individual
+    return 0; 
   };
 
-  // Mapeia número para string PT-BR (para usar no modal)
   const toTipoEmpresa = (v: string | number): 'CLIENTE' | 'FORNECEDOR' | 'AMBOS' => {
     if (typeof v === 'number') {
       if (v === 1) return 'FORNECEDOR';
       if (v === 2) return 'AMBOS';
       return 'CLIENTE';
     }
-    // aceita 'client'/'supplier'/'both' ou valores já em PT-BR
     const s = String(v ?? '').toUpperCase();
     if (s === 'SUPPLIER' || s === 'FORNECEDOR') return 'FORNECEDOR';
     if (s === 'BOTH' || s === 'AMBOS') return 'AMBOS';
@@ -605,13 +571,12 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
       ...(item ? { idEmpresa: Number(item.id) } : {}),
       razaoSocial: formData.corporateName,
       nomeFantasia: formData.tradeName,
-      tipoEmpresa: toTipoEmpresaNumero(formData.typeCorporate), // agora envia número
+      tipoEmpresa: toTipoEmpresaNumero(formData.typeCorporate), 
       cpfCnpj: onlyDigits(formData.document),
-      tipoPessoa: toTipoPessoaNumero(formData.typePerson), // agora envia número
+      tipoPessoa: toTipoPessoaNumero(formData.typePerson),
       email: formData.email || '',
       telefone: onlyDigits(formData.phone) || '',
       ruaEmpresa: formData.street || '',
-      // numeroEmpresa is NOT NULL in DB schema; send 0 if empty to avoid null constraint failures
       numeroEmpresa: toInt(formData.number) ?? 0,
       bairroEmpresa: formData.district || '',
       cepEmpresa: onlyDigits(formData.zipCode) || '',

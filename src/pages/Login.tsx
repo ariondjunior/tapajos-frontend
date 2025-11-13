@@ -40,7 +40,6 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
-        {/* Header */}
         <div className="text-center">
           <div className="flex justify-center">
             <div className="h-16 w-16 bg-primary-600 rounded-full flex items-center justify-center">
@@ -55,10 +54,8 @@ const Login: React.FC = () => {
           </p>
         </div>
 
-        {/* Formulário */}
         <div className="bg-white py-8 px-6 shadow-lg rounded-lg">
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
-            {/* Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-secondary-700 mb-1">
                 Email
@@ -75,7 +72,6 @@ const Login: React.FC = () => {
               )}
             </div>
 
-            {/* Senha */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-secondary-700 mb-1">
                 Senha
@@ -105,7 +101,6 @@ const Login: React.FC = () => {
               )}
             </div>
 
-            {/* Erro de login */}
             {loginError && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3">
                 <div className="flex">
@@ -115,7 +110,6 @@ const Login: React.FC = () => {
               </div>
             )}
 
-            {/* Botão de login */}
             <div>
               <button
                 type="submit"
@@ -134,7 +128,6 @@ const Login: React.FC = () => {
             </div>
           </form>
 
-          {/* Informações de demo */}
           <div className="mt-6 p-4 bg-secondary-50 rounded-lg">
             <h3 className="text-sm font-medium text-secondary-900 mb-2">
               Usuários cadastrados:
@@ -150,7 +143,6 @@ const Login: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer */}
         <div className="text-center">
           <p className="text-sm text-secondary-500">
             © 2024 Empresa Tapajos Ltda. Todos os direitos reservados.

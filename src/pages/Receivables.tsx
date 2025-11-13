@@ -4,7 +4,6 @@ import { Plus, Search, Edit, Trash2, CheckCircle, Clock, AlertCircle, X } from '
 import api from '../services/api';
 import axios from 'axios';
 
-// Tipos da API
 type ContaReceberApi = {
   idReceber: number;
   valorReceber: number;
@@ -77,13 +76,11 @@ const Receivables: React.FC = () => {
   const [editing, setEditing] = useState<ReceivableItem | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Companies and period filters (parity with Payables)
   const [companies, setCompanies] = useState<Array<{ id: number; name: string; tipoEmpresa?: number }>>([]);
   const [companyFilterType, setCompanyFilterType] = useState<'all' | 'cliente' | 'fornecedor'>('all');
   const [emissaoStart, setEmissaoStart] = useState<string>('');
   const [vencimentoEnd, setVencimentoEnd] = useState<string>('');
 
-  // Paginação
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
@@ -128,7 +125,6 @@ const Receivables: React.FC = () => {
     setHasSearched(true);
     setErrorMsg(null);
     try {
-      // ✅ Spring Data usa 'page' e 'size'
       const res = await api.get<PaginatedResponse<ContaReceberApi>>('/receber', {
         params: { page, size },
       });
@@ -164,7 +160,6 @@ const Receivables: React.FC = () => {
     }
   };
 
-  // Load companies for type filtering (kept small, like Payables)
   const loadCompanies = async () => {
     try {
       const res = await api.get('/empresa', { params: { page: 0, pageSize: 200 } });
@@ -198,7 +193,6 @@ const Receivables: React.FC = () => {
     }
   };
 
-  // Single entry point: if both emissaoStart and vencimentoEnd provided, call period endpoint
   const handleSearchOrPeriod = async () => {
     if (emissaoStart && vencimentoEnd) {
       await handleLoadPeriod();
@@ -228,7 +222,6 @@ const Receivables: React.FC = () => {
       );
     }
 
-    // company type filter (cliente/fornecedor) - parity with Payables
     if (companyType !== 'all') {
       out = out.filter((item) => {
         const comp = companiesList.find((c) => Number(c.id) === Number(item.clientId));
@@ -246,19 +239,15 @@ const Receivables: React.FC = () => {
   useEffect(() => {
     if (!hasSearched) return;
     setFilteredData(applyFilters(receivables, searchTerm, filterStatus, companyFilterType, companies));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, filterStatus, receivables, companyFilterType, companies]);
 
-  // ensure companies loaded for header filter
   useEffect(() => {
     if (companies.length === 0) loadCompanies();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSearchClick = () => handleSearch(0, pageSize);
 
   const handleEdit = (item: ReceivableItem) => {
-    // Abre modal com o item selecionado
     setEditing(item);
     setShowEditModal(true);
   };
@@ -287,7 +276,7 @@ const Receivables: React.FC = () => {
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
-    if (hasSearched) handleSearch(0, newSize); // ✅ passa 'size' corretamente
+    if (hasSearched) handleSearch(0, newSize);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -318,7 +307,6 @@ const Receivables: React.FC = () => {
 
   const formatDate = (date: Date) => new Intl.DateTimeFormat('pt-BR').format(date);
 
-  // Resumo
   const totalPending = receivables
     .filter((r) => r.status !== 'paid')
     .reduce((sum, r) => sum + r.amount, 0);
@@ -327,7 +315,6 @@ const Receivables: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Contas a Receber</h1>
@@ -339,7 +326,6 @@ const Receivables: React.FC = () => {
         </button>
       </div>
 
-      {/* Filtros */}
       <div className="card">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
           <div className="md:col-span-6">
@@ -400,7 +386,6 @@ const Receivables: React.FC = () => {
           </div>
         </div>
 
-        {/* Período e filtros por empresa (paridade com Contas a Pagar) */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-3">
           <div className="md:col-span-3">
             <label className="text-sm text-secondary-600">Emissão</label>
@@ -428,14 +413,12 @@ const Receivables: React.FC = () => {
         )}
       </div>
 
-      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
         </div>
       )}
 
-      {/* Empty state (antes da busca) */}
       {!hasSearched && !loading && (
         <div className="card">
           <div className="flex flex-col items-center justify-center py-12">
@@ -446,7 +429,6 @@ const Receivables: React.FC = () => {
         </div>
       )}
 
-      {/* Resumo */}
       {hasSearched && !loading && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="card">
@@ -495,7 +477,6 @@ const Receivables: React.FC = () => {
         </div>
       )}
 
-      {/* Tabela */}
       {hasSearched && !loading && (
         <div className="card">
           <div className="overflow-x-auto">
@@ -624,7 +605,6 @@ const Receivables: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de edição */}
       <EditReceivableModal
         open={showEditModal}
         item={editing}
@@ -635,12 +615,10 @@ const Receivables: React.FC = () => {
         onSaved={() => {
           setShowEditModal(false);
           setEditing(null);
-          // Recarrega a página atual após atualizar
           handleSearch(currentPage, pageSize);
         }}
       />
 
-      {/* Modal de criação */}
       <CreateReceivableModal
         open={showCreateModal}
         onClose={() => {
@@ -648,7 +626,6 @@ const Receivables: React.FC = () => {
         }}
         onSaved={() => {
           setShowCreateModal(false);
-          // Recarrega a página atual após criar
           handleSearch(currentPage, pageSize);
         }}
       />
@@ -656,7 +633,6 @@ const Receivables: React.FC = () => {
   );
 };
 
-// ---------------- Modal de Criação ----------------
 const CreateReceivableModal: React.FC<{
   open: boolean;
   onClose: () => void;
@@ -667,7 +643,6 @@ const CreateReceivableModal: React.FC<{
 
   const { user: authUser } = useAuth();
 
-  // Empresa (autocomplete)
   const [companyQuery, setCompanyQuery] = useState('');
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
@@ -675,7 +650,6 @@ const CreateReceivableModal: React.FC<{
   const [showCompanyList, setShowCompanyList] = useState(false);
   const [companySelectedQuery, setCompanySelectedQuery] = useState('');
 
-  // Conta (autocomplete com prévia)
   const [accountQuery, setAccountQuery] = useState('');
   const [accountOptions, setAccountOptions] = useState<BankAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
@@ -683,7 +657,6 @@ const CreateReceivableModal: React.FC<{
   const [showAccountList, setShowAccountList] = useState(false);
   const [accountSelectedQuery, setAccountSelectedQuery] = useState('');
 
-  // Form
   const [form, setForm] = useState({
     descricaoReceber: '',
     valorReceber: '',
@@ -696,7 +669,6 @@ const CreateReceivableModal: React.FC<{
 
   const inputToDateTime = (s: string) => (s ? `${s}T12:00:00` : null);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (!open) return;
 
@@ -724,7 +696,6 @@ const CreateReceivableModal: React.FC<{
     setError(null);
   }, [open]);
 
-  // Busca empresas (q >= 2)
   useEffect(() => {
     let mounted = true;
     let controller: AbortController | null = null;
@@ -781,7 +752,6 @@ const CreateReceivableModal: React.FC<{
     };
   }, [open, companyQuery, companySelectedQuery, showCompanyList]);
 
-  // Busca contas (q >= 2)
   useEffect(() => {
     let mounted = true;
     let controller: AbortController | null = null;
@@ -837,7 +807,6 @@ const CreateReceivableModal: React.FC<{
 
     const usuarioValue = (authUser?.name || form.usuario || '').trim();
 
-    // Validações mínimas
     if (!empresaId) return setError('Selecione a empresa (cliente)');
     if (!contaId) return setError('Selecione a conta bancária');
     if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
@@ -899,7 +868,6 @@ const CreateReceivableModal: React.FC<{
             </div>
           )}
 
-          {/* Empresa */}
           <div>
             <label className="block text-sm font-medium mb-1">Empresa (Cliente) *</label>
             <div className="relative">
@@ -951,7 +919,6 @@ const CreateReceivableModal: React.FC<{
             </div>
           </div>
 
-          {/* Conta */}
           <div>
             <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
             <div className="relative">
@@ -1025,7 +992,6 @@ const CreateReceivableModal: React.FC<{
             </div>
           </div>
 
-          {/* Campos principais */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Descrição *</label>
@@ -1123,9 +1089,7 @@ const CreateReceivableModal: React.FC<{
     </div>
   );
 };
-// ---------------- Fim do Modal de Criação ----------------
 
-// ---------------- Modal de Edição ----------------
 const EditReceivableModal: React.FC<{
   open: boolean;
   item: ReceivableItem | null;
@@ -1137,14 +1101,12 @@ const EditReceivableModal: React.FC<{
 
   const { user: authUser } = useAuth();
 
-  // Empresa (autocomplete)
   const [companyQuery, setCompanyQuery] = useState('');
   const [companyOptions, setCompanyOptions] = useState<CompanyOption[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<CompanyOption | null>(null);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
   const [showCompanyList, setShowCompanyList] = useState(false);
 
-  // Conta (autocomplete com prévia)
   const [accountQuery, setAccountQuery] = useState('');
   const [accountOptions, setAccountOptions] = useState<BankAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<BankAccount | null>(null);
@@ -1152,7 +1114,6 @@ const EditReceivableModal: React.FC<{
   const [showAccountList, setShowAccountList] = useState(false);
   const [accountPreview, setAccountPreview] = useState<BankAccount | null>(null);
 
-  // Form
   const [form, setForm] = useState({
     descricaoReceber: '',
     valorReceber: '',
@@ -1173,7 +1134,6 @@ const EditReceivableModal: React.FC<{
   const getEmpresaId = () => (selectedCompany?.id ?? item?.clientId ?? null);
   const getContaId = () => (selectedAccount?.idConta ?? item?.accountId ?? null);
 
-  // Função centralizada de submit do PUT
   const submitEdit = async () => {
     if (!item) return;
 
@@ -1184,7 +1144,6 @@ const EditReceivableModal: React.FC<{
 
     const usuarioValue = (authUser?.name || form.usuario || '').trim();
 
-    // Validações mínimas (entidade exige @NotNull/@NotBlank e @ManyToOne(optional=false))
     if (!empresaId) return setError('Selecione a empresa');
     if (!contaId) return setError('Selecione a conta bancária');
     if (!form.descricaoReceber.trim()) return setError('Informe a descrição');
@@ -1194,10 +1153,9 @@ const EditReceivableModal: React.FC<{
     if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
 
-    // ✅ envia no formato da entidade (com id no path e no corpo)
     const url = `/receber/${Number(item.id)}`;
     const payload = {
-      idReceber: Number(item.id), // requerido pelo @Validated(UpdateReceber)
+      idReceber: Number(item.id),
       valorReceber: Number(form.valorReceber),
       dataVencimento: inputToDateTime(form.dataVencimento),
       dataEmissao: inputToDateTime(form.dataEmissao),
@@ -1225,7 +1183,6 @@ const EditReceivableModal: React.FC<{
     }
   };
 
-  // Handler para submit via Enter no form
   const handleSubmit = (ev: React.FormEvent) => {
     ev.preventDefault();
     submitEdit();
@@ -1234,19 +1191,16 @@ const EditReceivableModal: React.FC<{
   useEffect(() => {
     if (!open || !item) return;
 
-    // Preenche formulário com o item selecionado
     setForm({
       descricaoReceber: item.description || '',
       valorReceber: String(item.amount ?? ''),
       formaPagamento: item.paymentMethod || '',
-      // prefer session user when editing, fallback to item.user
       usuario: authUser?.name || item.user || '',
       dataEmissao: dateToInput(item.issueDate),
       dataVencimento: dateToInput(item.dueDate),
       dataRec: item.paymentDate ? dateToInput(item.paymentDate) : '',
     });
 
-    // Empresa selecionada
     setSelectedCompany(
       item.clientId
         ? { id: item.clientId, name: item.clientName }
@@ -1256,7 +1210,6 @@ const EditReceivableModal: React.FC<{
     setCompanyOptions([]);
     setShowCompanyList(false);
 
-    // Conta selecionada
     setSelectedAccount(
       item.accountId
         ? {
@@ -1276,7 +1229,6 @@ const EditReceivableModal: React.FC<{
     setError(null);
   }, [open, item]);
 
-  // Busca empresas (q >= 2)
   useEffect(() => {
     const t = setTimeout(async () => {
       if (!open) return;
@@ -1316,7 +1268,6 @@ const EditReceivableModal: React.FC<{
     return () => clearTimeout(t);
   }, [open, companyQuery]);
 
-  // Busca contas (q >= 2)  ✅ usa 'size' em vez de 'pageSize'
   useEffect(() => {
     const t = setTimeout(async () => {
       if (!open) return;
@@ -1365,7 +1316,6 @@ const EditReceivableModal: React.FC<{
             </div>
           )}
 
-          {/* Empresa */}
           <div>
             <label className="block text-sm font-medium mb-1">Empresa (Cliente) *</label>
             <div className="relative">
@@ -1412,7 +1362,6 @@ const EditReceivableModal: React.FC<{
             </div>
           </div>
 
-          {/* Conta */}
           <div>
             <label className="block text-sm font-medium mb-1">Conta Bancária *</label>
             <div className="relative">
@@ -1503,7 +1452,6 @@ const EditReceivableModal: React.FC<{
             </div>
           </div>
 
-          {/* Campos principais */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-1">Descrição *</label>
@@ -1588,10 +1536,10 @@ const EditReceivableModal: React.FC<{
               Cancelar
             </button>
             <button
-              type="button"                 // ✅ evita depender do submit do form
+              type="button"                
               className="btn-primary"
               disabled={submitting}
-              onClick={submitEdit}          // ✅ chama diretamente o PUT
+              onClick={submitEdit}          
             >
               {submitting ? 'Salvando...' : 'Salvar alterações'}
             </button>
@@ -1601,6 +1549,5 @@ const EditReceivableModal: React.FC<{
     </div>
   );
 };
-// ---------------- Fim do Modal ----------------
 
 export default Receivables;

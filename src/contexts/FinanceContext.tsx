@@ -41,7 +41,6 @@ function uid(prefix = '') {
   return prefix + Date.now() + Math.random().toString(36).substring(2, 9)
 }
 
-// Tipos do backend de /contas (paginado)
 type ContaApi = {
   idConta: number
   agencia: string
@@ -78,14 +77,12 @@ export const FinanceProvider: React.FC<{children: ReactNode}> = ({children}) => 
     { id: 'ent1', date: new Date().toISOString(), user: 'system', entityId: 'e1', bankId: 'b1', type: 'receivable', description: 'Duplicata venda', amount: 1200, paid: false },
   ])
 
-  // Mapeia ContaApi -> Bank
   const mapContaToBank = (c: ContaApi): Bank => ({
     id: String(c.idConta),
     name: `${c.fkBanco?.nomeBanco ?? 'Banco'} • Ag ${c.agencia} Cc ${c.conta}-${c.dvConta}`,
     balance: Number(c.saldo ?? 0),
   })
 
-  // Carrega TODAS as páginas de /contas e consolida
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -94,7 +91,6 @@ export const FinanceProvider: React.FC<{children: ReactNode}> = ({children}) => 
         let all: ContaApi[] = first.data.content ?? []
         const totalPages = Number(first.data.totalPages ?? 1)
 
-        // Busca páginas restantes (se houver)
         if (totalPages > 1) {
           const promises = [];
           for (let p = 1; p < totalPages; p++) {

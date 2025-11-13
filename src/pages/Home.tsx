@@ -1,4 +1,3 @@
-// using automatic JSX runtime
 import { Link } from 'react-router-dom'
 import { useFinance } from '../context/finance'
 import { useAuth } from '../contexts/AuthContext'
@@ -75,7 +74,6 @@ export default function Home(){
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Bem-vindo, {user?.name}!
@@ -85,7 +83,6 @@ export default function Home(){
           </p>
         </div>
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {stats.map((stat, index) => (
             <div key={index} className="card animate-fadeIn" style={{ animationDelay: `${index * 0.1}s` }}>
@@ -104,7 +101,6 @@ export default function Home(){
           ))}
         </div>
 
-        {/* Quick Actions */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-gray-900 mb-6">Ações Rápidas</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -129,9 +125,7 @@ export default function Home(){
           </div>
         </div>
 
-        {/* Recent Activity */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Entries */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Lançamentos Recentes</h3>
@@ -164,7 +158,6 @@ export default function Home(){
             </div>
           </div>
 
-          {/* Bank Balances */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Saldos Bancários</h3>

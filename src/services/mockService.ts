@@ -1,6 +1,5 @@
 import { User } from '../types';
 
-// Keep only the minimal mock required for the login screen (users)
 const mockUsers: User[] = [
   {
     id: '1',
@@ -23,7 +22,6 @@ export const userService = {
 
   async login(email: string, password: string): Promise<User> {
     await simulateApiDelay();
-    // very small mock auth: match email only
     const user = mockUsers.find((u) => u.email === email) || mockUsers[0];
     return user;
   }

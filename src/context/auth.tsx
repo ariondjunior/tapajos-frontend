@@ -35,7 +35,6 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({ children }
   }, [user])
 
   const login = useCallback(async (username: string, password: string) => {
-    // Simple mock auth: accept a couple of demo users
     const users: Record<string, { password: string, name: string }> = {
       'admin': { password: 'admin', name: 'Administrador' },
       'user1': { password: '123', name: 'Usuário 1' },

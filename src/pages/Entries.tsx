@@ -70,14 +70,12 @@ export default function Entries(){
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Lançamentos</h1>
           <p className="text-gray-600">Gerencie suas transações financeiras</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Form */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
               <div className="mb-6">
@@ -86,7 +84,6 @@ export default function Entries(){
               </div>
 
               <form onSubmit={submit} className="space-y-6">
-                {/* Tipo de Transação */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
                     Tipo de Transação
@@ -132,7 +129,6 @@ export default function Entries(){
                   </div>
                 </div>
 
-                {/* Entidade */}
         <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Entidade
@@ -151,7 +147,6 @@ export default function Entries(){
           </select>
                 </div>
 
-                {/* Banco */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Banco (Opcional)
@@ -170,7 +165,6 @@ export default function Entries(){
           </select>
         </div>
 
-                {/* Valor */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Valor
@@ -191,7 +185,6 @@ export default function Entries(){
                   </div>
                 </div>
 
-                {/* Descrição */}
         <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Descrição
@@ -231,7 +224,6 @@ export default function Entries(){
             </div>
           </div>
 
-          {/* List */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
               <div className="flex items-center justify-between mb-6">

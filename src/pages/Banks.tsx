@@ -9,7 +9,7 @@ type ContaApi = {
   conta: string;
   saldo: number;
   tipoConta: string;
-  statusConta: number; // 1=ativo
+  statusConta: number; 
   dvConta: number;
   fkBanco?: {
     idBanco: number;
@@ -46,19 +46,18 @@ const Banks: React.FC = () => {
   const mapContaToBank = (c: ContaApi): Bank => ({
     id: String(c.idConta),
     name: c.fkBanco?.nomeBanco ?? 'Banco',
-    code: String(c.fkBanco?.idBanco ?? ''), // exibe no “Código”
+    code: String(c.fkBanco?.idBanco ?? ''), 
     accountNumber: `${c.conta}-${c.dvConta}`,
     agency: c.agencia,
     currentBalance: Number(c.saldo ?? 0),
-    createdAt: new Date(), // backend não envia; usando fallback
+    createdAt: new Date(), 
     isActive: c.statusConta === 1,
   });
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // carrega todas as páginas de /conta (endpoint do backend) e consolida
-      const PAGE_SIZE = 100; // paginar em blocos para evitar requests gigantes
+      const PAGE_SIZE = 100;  
       const first = await api.get<PaginatedResponse<ContaApi>>('/conta', { params: { page: 0, size: PAGE_SIZE } });
       const totalPages = Number(first.data.totalPages ?? 1);
       let all = first.data.content ?? [];
@@ -100,7 +99,6 @@ const Banks: React.FC = () => {
   };
 
   const handleCreate = () => {
-    // if a bank was just created, preselect it in the account modal
     if (lastCreatedBank) {
       setBankToSelect(lastCreatedBank);
       setLastCreatedBank(null);
@@ -171,7 +169,6 @@ const handleDelete = async (id: string) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-secondary-900">Bancos</h1>
@@ -192,7 +189,6 @@ const handleDelete = async (id: string) => {
         </div>
       </div>
 
-      {/* Filtros */}
       <div className="card">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-secondary-400" />
@@ -206,7 +202,6 @@ const handleDelete = async (id: string) => {
         </div>
       </div>
 
-      {/* Cards dos bancos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredData.length === 0 ? (
           <div className="col-span-full text-center py-12">
@@ -269,7 +264,6 @@ const handleDelete = async (id: string) => {
         )}
       </div>
 
-      {/* Modal (mantido) */}
       {showModal && (
         <BankModal
           bank={editingBank}
@@ -296,7 +290,6 @@ const handleDelete = async (id: string) => {
   );
 };
 
-// Modal para criar/editar banco
 interface BankModalProps {
   bank: Bank | null;
   onClose: () => void;
@@ -322,7 +315,6 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSel
 
   useEffect(() => {
     if (bank) {
-      // bank.code was stored as idBanco string in mapping
       setFormData({
         accountNumber: bank.accountNumber,
         agencia: bank.agency,
@@ -339,7 +331,6 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSel
     }
   }, [bank, initialSelectedBank]);
 
-  // autocomplete: busca bancos por q quando dropdown aberto
   useEffect(() => {
     let mounted = true;
     let controller: AbortController | null = null;
@@ -379,7 +370,6 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSel
     };
   }, [showBankList, bankQuery, bankSelectedQuery]);
 
-  // helper para separar conta e DV (formato separado agora)
   const splitAccount = (conta: string, dv: string) => ({ conta: conta || '', dvConta: Number(dv) || 0 });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -404,10 +394,8 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSel
 
     try {
       if (bank) {
-        // atualiza a conta existente
         await api.put(`/conta/${bank.id}`, payload);
       } else {
-        // cria nova conta
         await api.post('/conta', payload);
       }
       onSave();
@@ -552,7 +540,6 @@ const BankModal: React.FC<BankModalProps> = ({ bank, onClose, onSave, initialSel
 
 export default Banks;
 
-// Modal para criar um novo banco (separado do modal de conta)
 interface CreateBankModalProps {
   onClose: () => void;
   onCreated: (b: { id: number; nome: string }) => void;
@@ -568,7 +555,6 @@ const CreateBankModal: React.FC<CreateBankModalProps> = ({ onClose, onCreated })
     setCreating(true);
     try {
       await api.post('/banco', { nomeBanco: nome });
-      // tentar localizar o banco criado
       const res = await api.get('/banco', { params: { q: nome, page: 0, size: 10 } });
       const items = res.data?.content || res.data || [];
       const found = (items.map((b: any) => ({ id: b.idBanco ?? b.id, nome: b.nomeBanco ?? b.nome })) || [])[0];

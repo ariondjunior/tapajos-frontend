@@ -22,15 +22,12 @@ const AppContent: React.FC = () => {
       <Route path="/*" element={
         <ProtectedRoute>
           <div className="flex h-screen bg-secondary-50">
-            {/* Sidebar */}
             <aside className="w-64 bg-white border-r border-secondary-200">
               <div className="flex flex-col h-full">
-                {/* Logo */}
                 <div className="p-6 border-b border-secondary-200">
                   <h1 className="text-2xl font-bold text-primary-600">Sistema Tapajós</h1>
                 </div>
 
-                {/* Navigation */}
                 <nav className="flex-1 px-4 py-6 space-y-2">
 
                   <Link
@@ -90,7 +87,6 @@ const AppContent: React.FC = () => {
                   </Link>
                 </nav>
 
-                {/* User Profile */}
                 <div className="p-4 border-t border-secondary-200">
                   <div className="flex items-center">
                     <div className="h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
@@ -115,7 +111,6 @@ const AppContent: React.FC = () => {
               </div>
             </aside>
 
-            {/* Main Content */}
             <main className="flex-1 overflow-auto">
               <div className="container mx-auto px-6 py-8">
                 <Routes>
@@ -124,7 +119,6 @@ const AppContent: React.FC = () => {
                   <Route path="/banks" element={<Banks />} />
                   <Route path="/payables" element={<Payables />} />
                   <Route path="/receivables" element={<Receivables />} />
-                  {/* Removed /entries route: BankTransactions moved into Reports */}
                   <Route path="/reports" element={<Reports />} />
                 </Routes>
               </div>

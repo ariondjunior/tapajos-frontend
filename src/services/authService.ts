@@ -112,7 +112,7 @@ export const authService = {
     if (!token) {
       throw new Error('Token não encontrado');
     }
-    return mockUsers[0]; // Retornar o primeiro usuário como exemplo
+    return mockUsers[0];
   },
 };
 

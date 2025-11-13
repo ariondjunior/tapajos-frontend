@@ -22,7 +22,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    // Redirecionar para login, mas salvar a rota atual
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

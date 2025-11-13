@@ -1,4 +1,3 @@
-// Tipos para entidades do sistema financeiro
 
 export interface User {
   id: string;
@@ -35,7 +34,7 @@ export interface ClientSupplier {
   corporateName: string;
   typeCorporate: 'client' | 'supplier' | 'both';
   typePerson: 'individual' | 'company';
-  document: string; // CPF/CNPJ
+  document: string; 
   email: string;
   phone: string;
   street: string;
@@ -68,7 +67,7 @@ export interface BankTransaction {
   description: string;
   date: Date;
   userId: string;
-  relatedDocumentId?: string; // ID da duplicata relacionada
+  relatedDocumentId?: string; 
   createdAt: Date;
 }
 
