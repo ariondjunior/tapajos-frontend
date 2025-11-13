@@ -28,6 +28,7 @@ const Reports: React.FC = () => {
   const [loadingDaily, setLoadingDaily] = useState(false);
   const { banks: financeBanks } = useFinance();
   const [financeAccounts, setFinanceAccounts] = useState<Bank[]>([]);
+  const pageSize = 10;
 
   useEffect(() => {
     const init = async () => {
@@ -94,28 +95,28 @@ const Reports: React.FC = () => {
       });
     }
   };
+  
+  useEffect(() => {
+  loadExtratoDiario();
+}, [currentMovPage])
 
-  const handlePreviousPage = () => {
-    if (currentMovPage > 0) {
-      setCurrentMovPage(currentMovPage - 1);
-      loadExtratoDiario();
-    }
-  };
+const handlePreviousPage = () => {
+  if (currentMovPage > 0) {
+    setCurrentMovPage(currentMovPage - 1);
+  }
+};
 
-  const handleNextPage = () => {
-    if (currentMovPage < movimentacaoData.totalPages - 1) {
-      setCurrentMovPage(currentMovPage + 1);
-      loadExtratoDiario();
-    }
-  };
+const handleNextPage = () => {
+  if (currentMovPage < movimentacaoData.totalPages - 1) {
+    setCurrentMovPage(currentMovPage + 1);
+  }
+};
 
-  const handleGoToPage = (page: number) => {
-    if (page >= 0 && page < movimentacaoData.totalPages) {
-      setCurrentMovPage(page);
-      loadExtratoDiario();
-    }
-  };
-
+const handleGoToPage = (page: number) => {
+  if (page >= 0 && page < movimentacaoData.totalPages) {
+    setCurrentMovPage(page);
+  }
+};
 
 
   const loadDailySummary = async () => {
@@ -353,7 +354,7 @@ const Reports: React.FC = () => {
             )}
           </div>
         </div>
-                <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center">
             <FileText className="h-5 w-5 mr-2" />
             <h3 className="text-lg font-semibold">Movimentações</h3>
@@ -428,125 +429,161 @@ const Reports: React.FC = () => {
           </div>
         </div>
 
-        {/* Paginação */}
-        <div className="flex items-center justify-between mt-4 px-6 py-4 bg-white rounded-lg">
-          <div className="text-sm text-secondary-600">
-            Página {movimentacaoData.number + 1} de {movimentacaoData.totalPages} • Total: {movimentacaoData.totalElements} registros
+        <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between ml-5 mt-4 mr-5">
+          <div className="text-sm text-secondary-700">
+            <p className="text-sm text-secondary-700">
+                Mostrando <span className="font-medium">{currentMovPage * pageSize + 1}</span> a{' '}
+                <span className="font-medium">
+                  {Math.min((currentMovPage + 1) * pageSize, movimentacaoData.totalElements)}
+                </span>{' '}
+                de <span className="font-medium">{movimentacaoData.totalElements}</span> resultados
+            </p>
           </div>
-          <div className="flex items-center space-x-2">
+
+          <div
+            className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px justify-end"
+            aria-label="Pagination"
+          >
+            {/* anterior */}
             <button
               onClick={handlePreviousPage}
               disabled={currentMovPage === 0}
-              className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-secondary-300 bg-white text-sm font-medium text-secondary-500 hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ← Anterior
+              <svg
+                className="h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </button>
-
+                
+            
             {Array.from({ length: movimentacaoData.totalPages }).map((_, i) => (
               <button
                 key={i}
                 onClick={() => handleGoToPage(i)}
-                className={`px-3 py-1 rounded ${
-                  currentMovPage === i
-                    ? 'bg-blue-600 text-white'
-                    : 'border hover:bg-gray-100'
-                }`}
+                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${i === currentMovPage
+                    ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
+                    : 'bg-white border-secondary-300 text-secondary-500 hover:bg-secondary-50'
+                  }`}
               >
                 {i + 1}
               </button>
             ))}
 
+            {/* proximo */}
             <button
               onClick={handleNextPage}
               disabled={currentMovPage >= movimentacaoData.totalPages - 1}
-              className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-secondary-300 bg-white text-sm font-medium text-secondary-500 hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Próximo →
+              <svg
+                className="h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 mr-2" />
-            <h3 className="text-lg font-semibold">Extrato por Período</h3>
+
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center">
+              <Calendar className="h-5 w-5 mr-2" />
+              <h3 className="text-lg font-semibold">Extrato por Período</h3>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input type="datetime-local" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
+              <input type="datetime-local" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
+              <button onClick={loadExtratoPeriodo} className="btn-primary">Buscar</button>
+              <button onClick={() => exportToCSV(extratoPeriodo, 'extrato-periodo')} className="btn-secondary">Exportar CSV</button>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <input type="datetime-local" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
-            <input type="datetime-local" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
-            <button onClick={loadExtratoPeriodo} className="btn-primary">Buscar</button>
-            <button onClick={() => exportToCSV(extratoPeriodo, 'extrato-periodo')} className="btn-secondary">Exportar CSV</button>
-          </div>
-        </div>
 
-        <div className="p-4">
-          {extratoPeriodo.length === 0 ? (
-            <div className="text-center py-8 text-secondary-500">Nenhuma movimentação para o período</div>
-          ) : (
-            (() => {
-              const paidItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('pago')) || { valor: null };
-              const receivedItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: null };
-              const totalPaid = extratoPeriodo.reduce((s: number, it: any) => s + (it.tipoDuplicata === 0 || it.tipo === 'pagar' ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
-              const totalReceived = extratoPeriodo.reduce((s: number, it: any) => s + (!(it.tipoDuplicata === 0 || it.tipo === 'pagar') ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
+          <div className="p-4">
+            {extratoPeriodo.length === 0 ? (
+              <div className="text-center py-8 text-secondary-500">Nenhuma movimentação para o período</div>
+            ) : (
+              (() => {
+                const paidItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('pago')) || { valor: null };
+                const receivedItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: null };
+                const totalPaid = extratoPeriodo.reduce((s: number, it: any) => s + (it.tipoDuplicata === 0 || it.tipo === 'pagar' ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
+                const totalReceived = extratoPeriodo.reduce((s: number, it: any) => s + (!(it.tipoDuplicata === 0 || it.tipo === 'pagar') ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
 
-              const data = {
-                labels: ['Recebido', 'Pago'],
-                datasets: [
-                  {
-                    label: 'Valores',
-                    data: [totalReceived || Number(receivedItem.valor ?? 0), totalPaid || Number(paidItem.valor ?? 0)],
-                    backgroundColor: ['#10b981', '#ef4444']
-                  }
-                ]
-              };
+                const data = {
+                  labels: ['Recebido', 'Pago'],
+                  datasets: [
+                    {
+                      label: 'Valores',
+                      data: [totalReceived || Number(receivedItem.valor ?? 0), totalPaid || Number(paidItem.valor ?? 0)],
+                      backgroundColor: ['#10b981', '#ef4444']
+                    }
+                  ]
+                };
 
-              const options: any = {
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { beginAtZero: true } }
-              };
+                const options: any = {
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true } }
+                };
 
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                  <div style={{ height: 260 }} className="card p-4">
-                    <Bar data={data} options={options} />
-                  </div>
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div style={{ height: 260 }} className="card p-4">
+                      <Bar data={data} options={options} />
+                    </div>
 
-                  <div className="card p-4">
-                    <div className="text-sm font-medium text-secondary-600 mb-2">Resumo do Período</div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="w-3 h-3 inline-block rounded-full bg-green-500" />
-                          <div className="text-sm">Recebido</div>
+                    <div className="card p-4">
+                      <div className="text-sm font-medium text-secondary-600 mb-2">Resumo do Período</div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-3 h-3 inline-block rounded-full bg-green-500" />
+                            <div className="text-sm">Recebido</div>
+                          </div>
+                          <div className="text-sm font-semibold text-green-600">{formatCurrency(totalReceived || Number(receivedItem.valor ?? 0))}</div>
                         </div>
-                        <div className="text-sm font-semibold text-green-600">{formatCurrency(totalReceived || Number(receivedItem.valor ?? 0))}</div>
-                      </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <span className="w-3 h-3 inline-block rounded-full bg-red-500" />
-                          <div className="text-sm">Pago</div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-3 h-3 inline-block rounded-full bg-red-500" />
+                            <div className="text-sm">Pago</div>
+                          </div>
+                          <div className="text-sm font-semibold text-red-600">{formatCurrency(totalPaid || Number(paidItem.valor ?? 0))}</div>
                         </div>
-                        <div className="text-sm font-semibold text-red-600">{formatCurrency(totalPaid || Number(paidItem.valor ?? 0))}</div>
-                      </div>
 
-                      <div className="pt-3 border-t border-secondary-200">
-                        <div className="text-sm text-secondary-600">Total Movimentações</div>
-                        <div className="text-lg font-semibold text-secondary-900">{extratoPeriodo.length}</div>
+                        <div className="pt-3 border-t border-secondary-200">
+                          <div className="text-sm text-secondary-600">Total Movimentações</div>
+                          <div className="text-lg font-semibold text-secondary-900">{extratoPeriodo.length}</div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })()
-          )}
+                );
+              })()
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
+      );
 };
 
-export default Reports;
+      export default Reports;

@@ -88,6 +88,8 @@ const Receivables: React.FC = () => {
 
   const stripTime = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
+  
+
   const mapContaReceberToReceivable = (c: ContaReceberApi): ReceivableItem => {
     const dueDate = new Date(c.dataVencimento);
     const issueDate = new Date(c.dataEmissao);
@@ -282,6 +284,36 @@ const Receivables: React.FC = () => {
   const handlePageChange = (newPage: number) => {
     if (newPage < 0 || newPage >= totalPages) return;
     handleSearch(newPage, pageSize);
+  };
+    const handlePreviousPage = () => {
+    if (currentPage > 0) {
+      handleSearch(currentPage - 1, pageSize);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages - 1) {
+      handleSearch(currentPage + 1, pageSize);
+    }
+  };
+
+
+  const getPageNumbers = () => {
+    const pages: number[] = [];
+    const maxVisible = 5;
+    
+    let startPage = Math.max(0, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages - 1, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+      startPage = Math.max(0, endPage - maxVisible + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    
+    return pages;
   };
 
   const getStatusIcon = (status: string) => {
@@ -585,20 +617,43 @@ const Receivables: React.FC = () => {
                 Mostrando {currentPage * pageSize + 1} até {Math.min((currentPage + 1) * pageSize, totalElements)} de {totalElements} resultados
               </div>
               <div className="flex space-x-2">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 0}
-                  className="px-3 py-1 border rounded-md disabled:opacity-50"
-                >
-                  Anterior
-                </button>
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage >= totalPages - 1}
-                  className="px-3 py-1 border rounded-md disabled:opacity-50"
-                >
-                  Próxima
-                </button>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                      <button
+                        onClick={handlePreviousPage}
+                        disabled={currentPage === 0}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-secondary-300 bg-white text-sm font-medium text-secondary-500 hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="sr-only">Anterior</span>
+                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      
+                      {getPageNumbers().map((page) => (
+                        <button
+                          key={page}
+                          onClick={() => handlePageChange(page)}
+                          className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                            page === currentPage
+                              ? 'z-10 bg-primary-50 border-primary-500 text-primary-600'
+                              : 'bg-white border-secondary-300 text-secondary-500 hover:bg-secondary-50'
+                          }`}
+                        >
+                          {page + 1}
+                        </button>
+                      ))}
+                      
+                      <button
+                        onClick={handleNextPage}
+                        disabled={currentPage >= totalPages - 1}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-secondary-300 bg-white text-sm font-medium text-secondary-500 hover:bg-secondary-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="sr-only">Próxima</span>
+                        <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </nav>
               </div>
             </div>
           )}
