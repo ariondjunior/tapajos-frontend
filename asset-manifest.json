@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/tapajos-frontend/static/css/main.14133670.css",
-    "main.js": "/tapajos-frontend/static/js/main.09fd931b.js",
+    "main.js": "/tapajos-frontend/static/js/main.81fa5560.js",
     "index.html": "/tapajos-frontend/index.html",
     "main.14133670.css.map": "/tapajos-frontend/static/css/main.14133670.css.map",
-    "main.09fd931b.js.map": "/tapajos-frontend/static/js/main.09fd931b.js.map"
+    "main.81fa5560.js.map": "/tapajos-frontend/static/js/main.81fa5560.js.map"
   },
   "entrypoints": [
     "static/css/main.14133670.css",
-    "static/js/main.09fd931b.js"
+    "static/js/main.81fa5560.js"
   ]
 }
