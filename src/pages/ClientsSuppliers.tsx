@@ -594,13 +594,23 @@ const ClientSupplierModal: React.FC<ClientSupplierModalProps> = ({ item, onClose
       }
       alert('Dados salvos com sucesso!');
       onSave();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar:', error);
+
       if (axios.isAxiosError(error)) {
-        alert(`Erro ao salvar dados: ${error.response?.data?.message || error.message}`);
-      } else {
-        alert('Erro ao salvar dados');
+        const status = error.response?.status;
+        if (status === 500) {
+          alert('CPF/CNPJ ou e-mail já cadastrado');
+          return;
+        }
+
+        const data = error.response?.data;
+        const msg = typeof data === 'string' ? data : data?.message ?? error.message ?? 'Erro desconhecido';
+        alert(`Erro ao salvar dados: ${msg}`);
+        return;
       }
+
+      alert('Erro ao salvar dados');
     }
   };
 

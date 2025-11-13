@@ -448,6 +448,20 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
     if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorPagar || Number(form.valorPagar) <= 0) return setError('Informe um valor válido');
 
+    const emisDate = new Date(form.dataEmissao);
+    const vencDate = new Date(form.dataVencimento);
+
+    if (emisDate.getTime() > vencDate.getTime()) {
+      return setError('A data de emissão não pode ser posterior à data de vencimento');
+    }
+
+    if (form.dataPag) {
+      const pagDate = new Date(form.dataPag);
+      if (pagDate.getTime() < emisDate.getTime()) {
+        return setError('A data de pagamento não pode ser anterior à data de emissão');
+      }
+    }
+
     const response = await api.get(`/conta/${contaId}`);
     const conta = response.data;
 
@@ -821,6 +835,13 @@ const Payables: React.FC = () => {
 
   const handleLoadPeriod = async () => {
     if (!emissaoStart || !vencimentoEnd) return alert('Escolha data de emissão e vencimento para o período');
+
+    const startDate = new Date(emissaoStart);
+    const endDate = new Date(vencimentoEnd);
+    if (endDate.getTime() < startDate.getTime()) {
+      return alert('A data final deve ser igual ou posterior à data inicial');
+    }
+
     setLoading(true);
     try {
       const res = await api.get<any[]>('/pagar/periodo', { params: { emissao: emissaoStart, vencimento: vencimentoEnd } });

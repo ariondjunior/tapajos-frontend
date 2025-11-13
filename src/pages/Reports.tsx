@@ -162,6 +162,14 @@ const handleGoToPage = (page: number) => {
       alert('Escolha data/hora de início e fim');
       return;
     }
+
+    const startDate = new Date(periodStart);
+    const endDate = new Date(periodEnd);
+    if (endDate.getTime() < startDate.getTime()) {
+      alert('A data final deve ser igual ou posterior à data inicial');
+      return;
+    }
+
     try {
       const dataInicio = formatForBackend(periodStart);
       const dataFim = formatForBackend(periodEnd);
@@ -204,8 +212,6 @@ const handleGoToPage = (page: number) => {
     }
     return '-';
   };
-
-  // criacao de funcao para movimentação
 
   async function buscarMovimentacoes() {
     try {

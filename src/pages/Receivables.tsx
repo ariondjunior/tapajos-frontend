@@ -176,6 +176,13 @@ const Receivables: React.FC = () => {
 
   const handleLoadPeriod = async () => {
     if (!emissaoStart || !vencimentoEnd) return alert('Escolha data de emissão e vencimento para o período');
+
+    const startDate = new Date(emissaoStart);
+    const endDate = new Date(vencimentoEnd);
+    if (endDate.getTime() < startDate.getTime()) {
+      return alert('A data final deve ser igual ou posterior à data inicial');
+    }
+
     setLoading(true);
     try {
       const res = await api.get<any[]>('/receber/periodo', { params: { emissao: emissaoStart, vencimento: vencimentoEnd } });
@@ -871,6 +878,18 @@ const CreateReceivableModal: React.FC<{
     if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
 
+    const emisDate = new Date(form.dataEmissao);
+    const vencDate = new Date(form.dataVencimento);
+    if (emisDate.getTime() > vencDate.getTime()) {
+      return setError('A data de emissão não pode ser posterior à data de vencimento');
+    }
+    if (form.dataRec) {
+      const recDate = new Date(form.dataRec);
+      if (recDate.getTime() < emisDate.getTime()) {
+        return setError('A data de recebimento não pode ser anterior à data de emissão');
+      }
+    }
+
     const payload = {
       valorReceber: Number(form.valorReceber),
       dataVencimento: inputToDateTime(form.dataVencimento),
@@ -1207,6 +1226,18 @@ const EditReceivableModal: React.FC<{
     if (!form.dataVencimento) return setError('Informe a data de vencimento');
     if (!usuarioValue) return setError('Informe o usuário');
     if (!form.valorReceber || Number(form.valorReceber) <= 0) return setError('Informe um valor válido');
+
+    const emisDate = new Date(form.dataEmissao);
+    const vencDate = new Date(form.dataVencimento);
+    if (emisDate.getTime() > vencDate.getTime()) {
+      return setError('A data de emissão não pode ser posterior à data de vencimento');
+    }
+    if (form.dataRec) {
+      const recDate = new Date(form.dataRec);
+      if (recDate.getTime() < emisDate.getTime()) {
+        return setError('A data de recebimento não pode ser anterior à data de emissão');
+      }
+    }
 
     const url = `/receber/${Number(item.id)}`;
     const payload = {
