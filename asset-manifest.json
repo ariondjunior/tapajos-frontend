@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/tapajos-financeiro/static/css/main.14133670.css",
+    "main.js": "/tapajos-financeiro/static/js/main.fc4f5095.js",
+    "index.html": "/tapajos-financeiro/index.html",
+    "main.14133670.css.map": "/tapajos-financeiro/static/css/main.14133670.css.map",
+    "main.fc4f5095.js.map": "/tapajos-financeiro/static/js/main.fc4f5095.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.14133670.css",
+    "static/js/main.fc4f5095.js"
+  ]
+}
