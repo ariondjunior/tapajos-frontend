@@ -4,10 +4,10 @@ import { clientSupplierService, bankService, movimentacaoService, bankTransactio
 import { useFinance } from '../contexts/FinanceContext';
 import { ClientSupplier, Bank, BankTransaction, User } from '../types';
 import api from '../services/api';
-import { Pie } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Pie, Bar } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
 
-ChartJS.register(ArcElement, Tooltip, Legend);
+ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 const Reports: React.FC = () => {
   const [extratoDiario, setExtratoDiario] = useState<any[]>([]);
@@ -380,51 +380,84 @@ const Reports: React.FC = () => {
       </div>
 
       <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center">
-            <Calendar className="h-5 w-5 mr-2" />
-            <h3 className="text-lg font-semibold">Extrato por Período</h3>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center">
+              <Calendar className="h-5 w-5 mr-2" />
+              <h3 className="text-lg font-semibold">Extrato por Período</h3>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input type="datetime-local" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
+              <input type="datetime-local" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
+              <button onClick={loadExtratoPeriodo} className="btn-primary">Buscar</button>
+              <button onClick={() => exportToCSV(extratoPeriodo, 'extrato-periodo')} className="btn-secondary">Exportar CSV</button>
+            </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <input type="datetime-local" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
-            <input type="datetime-local" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
-            <button onClick={loadExtratoPeriodo} className="btn-primary">Buscar</button>
-            <button onClick={() => exportToCSV(extratoPeriodo, 'extrato-periodo')} className="btn-secondary">Exportar CSV</button>
-          </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-secondary-200">
-            <thead>
-              <tr className="table-header">
-                <th className="px-6 py-3 text-left">Data</th>
-                <th className="px-6 py-3 text-left">Banco</th>
-                <th className="px-6 py-3 text-left">Descrição</th>
-                <th className="px-6 py-3 text-center">Tipo</th>
-                <th className="px-6 py-3 text-right">Valor</th>
-                <th className="px-6 py-3 text-left">Usuário</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-secondary-200">
-              {extratoPeriodo.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="table-cell text-center text-secondary-500">Nenhuma movimentação para o período</td>
-                </tr>
-              ) : (
-                extratoPeriodo.map((it: any, i: number) => (
-                  <tr key={i} className="hover:bg-secondary-50">
-                    <td className="table-cell">{formatDate(it.dataRegistroMovimentacao || it.data)}</td>
-                    <td className="table-cell">{(it.conta && (it.conta.fkBanco?.nomeBanco || it.conta.nomeBanco)) || it.nomeBanco || '-'}</td>
-                    <td className="table-cell">{getDescription(it)}</td>
-                    <td className="table-cell text-center">{it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'Pagar' : 'Receber'}</td>
-                    <td className={`table-cell text-right font-semibold ${it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Number(it.valor || it.valorMov || it.amount || 0))}</td>
-                    <td className="table-cell">{it.usuario || it.usuarioCad || '-'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+          {/* Gráfico do período: mostrar totais Recebido x Pago para o intervalo selecionado */}
+          <div className="p-4">
+            {extratoPeriodo.length === 0 ? (
+              <div className="text-center py-8 text-secondary-500">Nenhuma movimentação para o período</div>
+            ) : (
+              (() => {
+                const paidItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('pago')) || { valor: null };
+                const receivedItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: null };
+                // If the API returns individual movimentacoes instead of summarized objects, compute sums
+                const totalPaid = extratoPeriodo.reduce((s: number, it: any) => s + (it.tipoDuplicata === 0 || it.tipo === 'pagar' ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
+                const totalReceived = extratoPeriodo.reduce((s: number, it: any) => s + (!(it.tipoDuplicata === 0 || it.tipo === 'pagar') ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
+
+                const data = {
+                  labels: ['Recebido', 'Pago'],
+                  datasets: [
+                    {
+                      label: 'Valores',
+                      data: [totalReceived || Number(receivedItem.valor ?? 0), totalPaid || Number(paidItem.valor ?? 0)],
+                      backgroundColor: ['#10b981', '#ef4444']
+                    }
+                  ]
+                };
+
+                const options: any = {
+                  maintainAspectRatio: false,
+                  plugins: { legend: { display: false } },
+                  scales: { y: { beginAtZero: true } }
+                };
+
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                    <div style={{ height: 260 }} className="card p-4">
+                      <Bar data={data} options={options} />
+                    </div>
+
+                    <div className="card p-4">
+                      <div className="text-sm font-medium text-secondary-600 mb-2">Resumo do Período</div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-3 h-3 inline-block rounded-full bg-green-500" />
+                            <div className="text-sm">Recebido</div>
+                          </div>
+                          <div className="text-sm font-semibold text-green-600">{formatCurrency(totalReceived || Number(receivedItem.valor ?? 0))}</div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="w-3 h-3 inline-block rounded-full bg-red-500" />
+                            <div className="text-sm">Pago</div>
+                          </div>
+                          <div className="text-sm font-semibold text-red-600">{formatCurrency(totalPaid || Number(paidItem.valor ?? 0))}</div>
+                        </div>
+
+                        <div className="pt-3 border-t border-secondary-200">
+                          <div className="text-sm text-secondary-600">Total Movimentações</div>
+                          <div className="text-lg font-semibold text-secondary-900">{extratoPeriodo.length}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()
+            )}
+          </div>
       </div>
 
       {/* Movimentações Bancárias (moved from BankTransactions) */}

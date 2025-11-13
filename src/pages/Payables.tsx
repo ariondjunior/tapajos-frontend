@@ -358,7 +358,21 @@ const EditModal: React.FC<EditModalProps> = ({ open, item, onClose, onSave }) =>
         .then((res) => {
           if (!mounted) return;
           const data = res.data?.content || res.data || [];
-          const list = data
+          const qLower = q.toLowerCase();
+          // Keep only entries where any of the common name fields contains the query
+          const matched = (data as any[]).filter((e: any) => {
+            const a = String(e.nomeFantasia ?? '').toLowerCase();
+            const b = String(e.razaoSocial ?? '').toLowerCase();
+            const c = String(e.nome ?? '').toLowerCase();
+            const doc = String(e.cpfCnpj ?? e.cnpj ?? '').toLowerCase();
+            return (
+              (a && a.includes(qLower)) ||
+              (b && b.includes(qLower)) ||
+              (c && c.includes(qLower)) ||
+              (doc && doc.includes(qLower))
+            );
+          });
+          const list = matched
             .map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia ?? e.razaoSocial ?? e.nome }))
             .filter((e: any) => e.id && e.name);
           setSupplierOptions(list);
@@ -658,6 +672,10 @@ const Payables: React.FC = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [suppliers, setSuppliers] = useState<Array<{ id: number; name: string }>>([]);
   const [accounts, setAccounts] = useState<Array<{ id: number; name: string }>>([]);
+  const [companies, setCompanies] = useState<Array<{ id: number; name: string; tipoEmpresa?: number }>>([]);
+  const [companyFilterType, setCompanyFilterType] = useState<'all' | 'cliente' | 'fornecedor'>('all');
+  const [emissaoStart, setEmissaoStart] = useState<string>('');
+  const [vencimentoEnd, setVencimentoEnd] = useState<string>('');
 
   // Estados de paginação
   const [currentPage, setCurrentPage] = useState(0);
@@ -677,6 +695,8 @@ const Payables: React.FC = () => {
           name: e.nomeFantasia || e.razaoSocial,
         }))
       );
+      // also store all companies for filtering
+      setCompanies(empresas.map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia || e.razaoSocial || e.nome, tipoEmpresa: e.tipoEmpresa })));
     } catch (error) {
       console.error('Erro ao carregar fornecedores (/empresa):', error);
     }
@@ -698,12 +718,25 @@ const Payables: React.FC = () => {
     }
   };
 
+  // load companies independently (if not loaded by loadSuppliers)
+  const loadCompanies = async () => {
+    try {
+      const res = await api.get('/empresa', { params: { page: 0, pageSize: 200 } });
+      const empresas = res.data?.content || res.data || [];
+      setCompanies(empresas.map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia || e.razaoSocial || e.nome, tipoEmpresa: e.tipoEmpresa })));
+    } catch (err) {
+      console.error('Erro ao carregar empresas para filtro:', err);
+    }
+  };
+
   // Evitar requisição no mount: só quando o modal abrir
   useEffect(() => {
     if (showEditModal) {
       if (suppliers.length === 0) loadSuppliers();
       if (accounts.length === 0) loadAccounts();
     }
+    // ensure companies available for header filters even if modal never opened
+    if (companies.length === 0) loadCompanies();
   }, [showEditModal]);
 
   // Removido o useEffect inicial que carregava automaticamente
@@ -798,6 +831,17 @@ const Payables: React.FC = () => {
       );
     }
 
+    // company type filter (cliente/fornecedor)
+    if (companyFilterType !== 'all') {
+      filtered = filtered.filter(item => {
+        const comp = companies.find(c => Number(c.id) === Number(item.supplierId));
+        if (!comp) return false;
+        if (companyFilterType === 'cliente') return Number(comp.tipoEmpresa) === 0;
+        if (companyFilterType === 'fornecedor') return Number(comp.tipoEmpresa) === 1;
+        return true;
+      });
+    }
+
     filtered.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
     setFilteredData(filtered);
   };
@@ -805,6 +849,44 @@ const Payables: React.FC = () => {
   const handleSearchClick = () => {
     handleSearch(0, pageSize);
   };
+
+  const handleLoadPeriod = async () => {
+    if (!emissaoStart || !vencimentoEnd) return alert('Escolha data de emissão e vencimento para o período');
+    setLoading(true);
+    try {
+      const res = await api.get<any[]>('/pagar/periodo', { params: { emissao: emissaoStart, vencimento: vencimentoEnd } });
+      const contas = res.data || res || [];
+      const mapped = contas.map((c: ContaPagarApi) => mapContaPagarToPayable(c));
+      setPayables(mapped);
+      setCurrentPage(0);
+      setTotalPages(1);
+      setTotalElements(mapped.length);
+      setHasSearched(true);
+      filterData(mapped);
+    } catch (err) {
+      console.error('Erro ao carregar faturas por período:', err);
+      alert('Erro ao carregar por período');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Single entry point: the magnifying glass button (and Enter) will call this.
+  // If both emissaoStart and vencimentoEnd are provided, do the period search,
+  // otherwise do the normal paginated listing.
+  const handleSearchOrPeriod = async () => {
+    if (emissaoStart && vencimentoEnd) {
+      await handleLoadPeriod();
+    } else {
+      await handleSearch(0, pageSize);
+    }
+  };
+
+  // Re-apply local filters when relevant inputs change
+  useEffect(() => {
+    // run filter against current payables
+    filterData(payables);
+  }, [companyFilterType, searchTerm, filterStatus, payables]);
 
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize);
@@ -926,7 +1008,7 @@ const Payables: React.FC = () => {
                 placeholder="Buscar por descrição, fornecedor ou documento..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearchClick()}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearchOrPeriod()}
                 className="input-field pl-10"
               />
             </div>
@@ -961,7 +1043,7 @@ const Payables: React.FC = () => {
 
           <div className="md:col-span-1">
             <button
-              onClick={handleSearchClick}
+              onClick={handleSearchOrPeriod}
               className="btn-primary w-full flex items-center justify-center"
               disabled={loading}
             >
@@ -972,6 +1054,29 @@ const Payables: React.FC = () => {
               )}
             </button>
           </div>
+        </div>
+
+        {/* Período e filtros por empresa */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-3">
+          <div className="md:col-span-3">
+            <label className="block text-xs text-secondary-600 mb-1">Emissão (início)</label>
+            <input type="date" value={emissaoStart} onChange={e => setEmissaoStart(e.target.value)} className="input-field" />
+          </div>
+          <div className="md:col-span-3">
+            <label className="block text-xs text-secondary-600 mb-1">Vencimento (fim)</label>
+            <input type="date" value={vencimentoEnd} onChange={e => setVencimentoEnd(e.target.value)} className="input-field" />
+          </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-xs text-secondary-600 mb-1">Tipo Empresa</label>
+            <select value={companyFilterType} onChange={e => setCompanyFilterType(e.target.value as any)} className="input-field">
+              <option value="all">Todos</option>
+              <option value="cliente">Clientes</option>
+              <option value="fornecedor">Fornecedores</option>
+            </select>
+          </div>
+
+          {/* Empresa filter removed per request (use Tipo Empresa only) */}
         </div>
       </div>
 

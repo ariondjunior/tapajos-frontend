@@ -77,6 +77,12 @@ const Receivables: React.FC = () => {
   const [editing, setEditing] = useState<ReceivableItem | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
+  // Companies and period filters (parity with Payables)
+  const [companies, setCompanies] = useState<Array<{ id: number; name: string; tipoEmpresa?: number }>>([]);
+  const [companyFilterType, setCompanyFilterType] = useState<'all' | 'cliente' | 'fornecedor'>('all');
+  const [emissaoStart, setEmissaoStart] = useState<string>('');
+  const [vencimentoEnd, setVencimentoEnd] = useState<string>('');
+
   // Paginação
   const [currentPage, setCurrentPage] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -131,8 +137,8 @@ const Receivables: React.FC = () => {
       const contas = res.data?.content || [];
       const mapped = contas.map(mapContaReceberToReceivable);
 
-      setReceivables(mapped);
-      setFilteredData(applyFilters(mapped, searchTerm, filterStatus));
+  setReceivables(mapped);
+  setFilteredData(applyFilters(mapped, searchTerm, filterStatus, companyFilterType, companies));
 
       setCurrentPage(res.data.number);
       setTotalPages(res.data.totalPages);
@@ -158,10 +164,55 @@ const Receivables: React.FC = () => {
     }
   };
 
+  // Load companies for type filtering (kept small, like Payables)
+  const loadCompanies = async () => {
+    try {
+      const res = await api.get('/empresa', { params: { page: 0, pageSize: 200 } });
+      const empresas = res.data?.content || res.data || [];
+      setCompanies(
+        empresas.map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia || e.razaoSocial || e.nome, tipoEmpresa: e.tipoEmpresa }))
+      );
+    } catch (err) {
+      console.error('Erro ao carregar empresas para filtro:', err);
+    }
+  };
+
+  const handleLoadPeriod = async () => {
+    if (!emissaoStart || !vencimentoEnd) return alert('Escolha data de emissão e vencimento para o período');
+    setLoading(true);
+    try {
+      const res = await api.get<any[]>('/receber/periodo', { params: { emissao: emissaoStart, vencimento: vencimentoEnd } });
+      const contas = res.data || res || [];
+      const mapped = contas.map((c: ContaReceberApi) => mapContaReceberToReceivable(c));
+      setReceivables(mapped);
+      setCurrentPage(0);
+      setTotalPages(1);
+      setTotalElements(mapped.length);
+      setHasSearched(true);
+      setFilteredData(applyFilters(mapped, searchTerm, filterStatus, companyFilterType, companies));
+    } catch (err) {
+      console.error('Erro ao carregar faturas por período:', err);
+      alert('Erro ao carregar por período');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Single entry point: if both emissaoStart and vencimentoEnd provided, call period endpoint
+  const handleSearchOrPeriod = async () => {
+    if (emissaoStart && vencimentoEnd) {
+      await handleLoadPeriod();
+    } else {
+      await handleSearch(0, pageSize);
+    }
+  };
+
   const applyFilters = (
     data: ReceivableItem[],
     term: string,
-    status: 'all' | 'pending' | 'paid' | 'overdue'
+    status: 'all' | 'pending' | 'paid' | 'overdue',
+    companyType: 'all' | 'cliente' | 'fornecedor' = 'all',
+    companiesList: Array<{ id: number; name: string; tipoEmpresa?: number }> = []
   ) => {
     let out = [...data];
 
@@ -177,15 +228,32 @@ const Receivables: React.FC = () => {
       );
     }
 
+    // company type filter (cliente/fornecedor) - parity with Payables
+    if (companyType !== 'all') {
+      out = out.filter((item) => {
+        const comp = companiesList.find((c) => Number(c.id) === Number(item.clientId));
+        if (!comp) return false;
+        if (companyType === 'cliente') return Number(comp.tipoEmpresa) === 0;
+        if (companyType === 'fornecedor') return Number(comp.tipoEmpresa) === 1;
+        return true;
+      });
+    }
+
     out.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
     return out;
   };
 
   useEffect(() => {
     if (!hasSearched) return;
-    setFilteredData(applyFilters(receivables, searchTerm, filterStatus));
+    setFilteredData(applyFilters(receivables, searchTerm, filterStatus, companyFilterType, companies));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterStatus]);
+  }, [searchTerm, filterStatus, receivables, companyFilterType, companies]);
+
+  // ensure companies loaded for header filter
+  useEffect(() => {
+    if (companies.length === 0) loadCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSearchClick = () => handleSearch(0, pageSize);
 
@@ -317,7 +385,7 @@ const Receivables: React.FC = () => {
 
           <div className="md:col-span-1">
             <button
-              onClick={handleSearchClick}
+              onClick={handleSearchOrPeriod}
               className="btn-primary w-full flex items-center justify-center"
               disabled={loading}
               aria-label="Pesquisar"
@@ -329,6 +397,27 @@ const Receivables: React.FC = () => {
                 <Search className="h-5 w-5" />
               )}
             </button>
+          </div>
+        </div>
+
+        {/* Período e filtros por empresa (paridade com Contas a Pagar) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mt-3">
+          <div className="md:col-span-3">
+            <label className="text-sm text-secondary-600">Emissão</label>
+            <input type="date" value={emissaoStart} onChange={(e) => setEmissaoStart(e.target.value)} className="input-field" />
+          </div>
+          <div className="md:col-span-3">
+            <label className="text-sm text-secondary-600">Vencimento</label>
+            <input type="date" value={vencimentoEnd} onChange={(e) => setVencimentoEnd(e.target.value)} className="input-field" />
+          </div>
+
+          <div className="md:col-span-3">
+            <label className="text-sm text-secondary-600">Tipo de Empresa</label>
+            <select value={companyFilterType} onChange={(e) => setCompanyFilterType(e.target.value as any)} className="input-field">
+              <option value="all">Todos</option>
+              <option value="cliente">Cliente</option>
+              <option value="fornecedor">Fornecedor</option>
+            </select>
           </div>
         </div>
 
@@ -656,11 +745,21 @@ const CreateReceivableModal: React.FC<{
         .then((res) => {
           if (!mounted) return;
           const data = res.data?.content || res.data || [];
-          const list: CompanyOption[] = data
-            .map((e: any) => ({
-              id: e.idEmpresa ?? e.id,
-              name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
-            }))
+          const qLower = q.toLowerCase();
+          const matched = (data as any[]).filter((e: any) => {
+            const a = String(e.nomeFantasia ?? '').toLowerCase();
+            const b = String(e.razaoSocial ?? '').toLowerCase();
+            const c = String(e.nome ?? '').toLowerCase();
+            const doc = String(e.cpfCnpj ?? e.cnpj ?? '').toLowerCase();
+            return (
+              (a && a.includes(qLower)) ||
+              (b && b.includes(qLower)) ||
+              (c && c.includes(qLower)) ||
+              (doc && doc.includes(qLower))
+            );
+          });
+          const list: CompanyOption[] = matched
+            .map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia ?? e.razaoSocial ?? e.nome }))
             .filter((e: any) => e.id && e.name);
           setCompanyOptions(list);
           setShowCompanyList(true);
@@ -1190,11 +1289,21 @@ const EditReceivableModal: React.FC<{
         setLoadingCompanies(true);
         const res = await api.get('/empresa', { params: { q } });
         const data = res.data?.content || res.data || [];
-        const list: CompanyOption[] = data
-          .map((e: any) => ({
-            id: e.idEmpresa ?? e.id,
-            name: e.nomeFantasia ?? e.razaoSocial ?? e.nome,
-          }))
+        const qLower = q.toLowerCase();
+        const matched = (data as any[]).filter((e: any) => {
+          const a = String(e.nomeFantasia ?? '').toLowerCase();
+          const b = String(e.razaoSocial ?? '').toLowerCase();
+          const c = String(e.nome ?? '').toLowerCase();
+          const doc = String(e.cpfCnpj ?? e.cnpj ?? '').toLowerCase();
+          return (
+            (a && a.includes(qLower)) ||
+            (b && b.includes(qLower)) ||
+            (c && c.includes(qLower)) ||
+            (doc && doc.includes(qLower))
+          );
+        });
+        const list: CompanyOption[] = matched
+          .map((e: any) => ({ id: e.idEmpresa ?? e.id, name: e.nomeFantasia ?? e.razaoSocial ?? e.nome }))
           .filter((e: any) => e.id && e.name);
         setCompanyOptions(list);
         setShowCompanyList(true);
