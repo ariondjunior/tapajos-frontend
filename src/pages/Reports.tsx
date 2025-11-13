@@ -73,6 +73,8 @@ const Reports: React.FC = () => {
     }
   };
 
+
+
   const loadDailySummary = async () => {
     try {
       setLoadingDaily(true);
@@ -159,6 +161,21 @@ const Reports: React.FC = () => {
     return '-';
   };
 
+  // criacao de funcao para movimentação
+
+  async function buscarMovimentacoes() {
+    try {
+      const resposta = await fetch("http://localhost:8080/movimentacao?page=0&pageSize=10");
+
+      const dados = await resposta.json();
+    } catch (erro) {
+      console.error("Ocorreu um erro:", erro);
+    }
+
+  }
+  const botao = document.getElementById("getMov");
+  botao?.addEventListener("click", buscarMovimentacoes);
+
   const exportToCSV = (data: any[], filename: string) => {
     if (!data || data.length === 0) {
       alert('Nenhum dado para exportar');
@@ -225,9 +242,9 @@ const Reports: React.FC = () => {
                     legend: {
                       position: 'bottom',
                       labels: {
-                        usePointStyle: true,  
-                        pointStyle: 'circle',  
-                        boxWidth: 10,         
+                        usePointStyle: true,
+                        pointStyle: 'circle',
+                        boxWidth: 10,
                         padding: 10,
                         font: {
                           size: 11
@@ -368,82 +385,82 @@ const Reports: React.FC = () => {
       </div>
 
       <div className="card">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center">
-              <Calendar className="h-5 w-5 mr-2" />
-              <h3 className="text-lg font-semibold">Extrato por Período</h3>
-            </div>
-            <div className="flex items-center space-x-2">
-              <input type="datetime-local" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
-              <input type="datetime-local" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
-              <button onClick={loadExtratoPeriodo} className="btn-primary">Buscar</button>
-              <button onClick={() => exportToCSV(extratoPeriodo, 'extrato-periodo')} className="btn-secondary">Exportar CSV</button>
-            </div>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center">
+            <Calendar className="h-5 w-5 mr-2" />
+            <h3 className="text-lg font-semibold">Extrato por Período</h3>
           </div>
+          <div className="flex items-center space-x-2">
+            <input type="datetime-local" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="input-field" />
+            <input type="datetime-local" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="input-field" />
+            <button onClick={loadExtratoPeriodo} className="btn-primary">Buscar</button>
+            <button onClick={() => exportToCSV(extratoPeriodo, 'extrato-periodo')} className="btn-secondary">Exportar CSV</button>
+          </div>
+        </div>
 
-          <div className="p-4">
-            {extratoPeriodo.length === 0 ? (
-              <div className="text-center py-8 text-secondary-500">Nenhuma movimentação para o período</div>
-            ) : (
-              (() => {
-                const paidItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('pago')) || { valor: null };
-                const receivedItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: null };
-                const totalPaid = extratoPeriodo.reduce((s: number, it: any) => s + (it.tipoDuplicata === 0 || it.tipo === 'pagar' ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
-                const totalReceived = extratoPeriodo.reduce((s: number, it: any) => s + (!(it.tipoDuplicata === 0 || it.tipo === 'pagar') ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
+        <div className="p-4">
+          {extratoPeriodo.length === 0 ? (
+            <div className="text-center py-8 text-secondary-500">Nenhuma movimentação para o período</div>
+          ) : (
+            (() => {
+              const paidItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('pago')) || { valor: null };
+              const receivedItem = extratoPeriodo.find((d: any) => String(d.tipo).toLowerCase().includes('receb')) || { valor: null };
+              const totalPaid = extratoPeriodo.reduce((s: number, it: any) => s + (it.tipoDuplicata === 0 || it.tipo === 'pagar' ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
+              const totalReceived = extratoPeriodo.reduce((s: number, it: any) => s + (!(it.tipoDuplicata === 0 || it.tipo === 'pagar') ? Number(it.valor ?? it.valorMov ?? it.amount ?? 0) : 0), 0);
 
-                const data = {
-                  labels: ['Recebido', 'Pago'],
-                  datasets: [
-                    {
-                      label: 'Valores',
-                      data: [totalReceived || Number(receivedItem.valor ?? 0), totalPaid || Number(paidItem.valor ?? 0)],
-                      backgroundColor: ['#10b981', '#ef4444']
-                    }
-                  ]
-                };
+              const data = {
+                labels: ['Recebido', 'Pago'],
+                datasets: [
+                  {
+                    label: 'Valores',
+                    data: [totalReceived || Number(receivedItem.valor ?? 0), totalPaid || Number(paidItem.valor ?? 0)],
+                    backgroundColor: ['#10b981', '#ef4444']
+                  }
+                ]
+              };
 
-                const options: any = {
-                  maintainAspectRatio: false,
-                  plugins: { legend: { display: false } },
-                  scales: { y: { beginAtZero: true } }
-                };
+              const options: any = {
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true } }
+              };
 
-                return (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                    <div style={{ height: 260 }} className="card p-4">
-                      <Bar data={data} options={options} />
-                    </div>
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div style={{ height: 260 }} className="card p-4">
+                    <Bar data={data} options={options} />
+                  </div>
 
-                    <div className="card p-4">
-                      <div className="text-sm font-medium text-secondary-600 mb-2">Resumo do Período</div>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 inline-block rounded-full bg-green-500" />
-                            <div className="text-sm">Recebido</div>
-                          </div>
-                          <div className="text-sm font-semibold text-green-600">{formatCurrency(totalReceived || Number(receivedItem.valor ?? 0))}</div>
+                  <div className="card p-4">
+                    <div className="text-sm font-medium text-secondary-600 mb-2">Resumo do Período</div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-3 h-3 inline-block rounded-full bg-green-500" />
+                          <div className="text-sm">Recebido</div>
                         </div>
+                        <div className="text-sm font-semibold text-green-600">{formatCurrency(totalReceived || Number(receivedItem.valor ?? 0))}</div>
+                      </div>
 
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="w-3 h-3 inline-block rounded-full bg-red-500" />
-                            <div className="text-sm">Pago</div>
-                          </div>
-                          <div className="text-sm font-semibold text-red-600">{formatCurrency(totalPaid || Number(paidItem.valor ?? 0))}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="w-3 h-3 inline-block rounded-full bg-red-500" />
+                          <div className="text-sm">Pago</div>
                         </div>
+                        <div className="text-sm font-semibold text-red-600">{formatCurrency(totalPaid || Number(paidItem.valor ?? 0))}</div>
+                      </div>
 
-                        <div className="pt-3 border-t border-secondary-200">
-                          <div className="text-sm text-secondary-600">Total Movimentações</div>
-                          <div className="text-lg font-semibold text-secondary-900">{extratoPeriodo.length}</div>
-                        </div>
+                      <div className="pt-3 border-t border-secondary-200">
+                        <div className="text-sm text-secondary-600">Total Movimentações</div>
+                        <div className="text-lg font-semibold text-secondary-900">{extratoPeriodo.length}</div>
                       </div>
                     </div>
                   </div>
-                );
-              })()
-            )}
-          </div>
+                </div>
+              );
+            })()
+          )}
+        </div>
       </div>
 
       <div className="card">
@@ -469,6 +486,7 @@ const Reports: React.FC = () => {
               <option value="credit">Crédito</option>
               <option value="debit">Débito</option>
             </select>
+            <button onClick={buscarMovimentacoes} className='bg-blue-500 hover:pointer'>Buscar Dados</button>
           </div>
         </div>
 

@@ -115,3 +115,5 @@ export interface DashboardData {
   cashFlowProjection: CashFlowProjection[];
   recentTransactions: BankTransaction[];
 }
+
+
