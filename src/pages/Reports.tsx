@@ -61,15 +61,58 @@ const Reports: React.FC = () => {
     setFilteredTransactions(filtered);
   }, [transactions, txSearchTerm, txFilterBank, txFilterType]);
 
+  const [movimentacaoData, setMovimentacaoData] = useState<any>({
+    content: [],
+    totalPages: 0,
+    totalElements: 0,
+    number: 0,
+    size: 10
+  });
+
+  const [currentMovPage, setCurrentMovPage] = useState(0);
   const loadExtratoDiario = async () => {
     try {
-      const page = await movimentacaoService.getMovimentacoes(0, 100);
-      const content = page?.content || [];
-      setExtratoDiario(content);
+      const page = await movimentacaoService.getMovimentacoes(currentMovPage, 10);
+      setMovimentacaoData(page || {
+        content: [],
+        totalPages: 0,
+        totalElements: 0,
+        number: 0,
+        size: 10
+      });
+      setExtratoDiario(page?.content || []);
       await loadDailySummary();
     } catch (err) {
       console.error('Erro extrato diário', err);
       setExtratoDiario([]);
+      setMovimentacaoData({
+        content: [],
+        totalPages: 0,
+        totalElements: 0,
+        number: 0,
+        size: 10
+      });
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentMovPage > 0) {
+      setCurrentMovPage(currentMovPage - 1);
+      loadExtratoDiario();
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentMovPage < movimentacaoData.totalPages - 1) {
+      setCurrentMovPage(currentMovPage + 1);
+      loadExtratoDiario();
+    }
+  };
+
+  const handleGoToPage = (page: number) => {
+    if (page >= 0 && page < movimentacaoData.totalPages) {
+      setCurrentMovPage(page);
+      loadExtratoDiario();
     }
   };
 
@@ -310,7 +353,7 @@ const Reports: React.FC = () => {
             )}
           </div>
         </div>
-        <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between mb-3">
           <div className="flex items-center">
             <FileText className="h-5 w-5 mr-2" />
             <h3 className="text-lg font-semibold">Movimentações</h3>
@@ -344,7 +387,7 @@ const Reports: React.FC = () => {
           </div>
           <div className="card p-4">
             <p className="text-sm font-medium text-secondary-600">Total Movimentações</p>
-            <p className="text-2xl font-semibold text-secondary-900">{extratoDiario.length}</p>
+            <p className="text-2xl font-semibold text-secondary-900">{movimentacaoData.totalElements}</p>
           </div>
         </div>
 
@@ -353,33 +396,73 @@ const Reports: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-white">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Data</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Banco</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Descrição</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Tipo</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Valor</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Usuário</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Data</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Banco</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Descrição</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold">Forma Pagamento</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold">Valor</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Usuário</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {extratoDiario.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6 text-center text-sm text-gray-500">Nenhuma movimentação</td>
+                    <td colSpan={6} className="px-6 py-4 text-center text-secondary-500">Nenhuma movimentação</td>
                   </tr>
                 ) : (
                   extratoDiario.map((it: any, i: number) => (
                     <tr key={i} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">{formatDate(it.dataRegistroMovimentacao || it.data)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{(it.conta && (it.conta.fkBanco?.nomeBanco || it.conta.nomeBanco)) || it.nomeBanco || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{getDescription(it)}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 text-center">{it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'Pagar' : 'Receber'}</td>
-                      <td className={`px-4 py-3 text-sm font-medium text-right ${it.tipoDuplicata === 0 || it.tipo === 'pagar' ? 'text-red-600' : 'text-green-600'}`}>{formatCurrency(Number(it.valor || it.valorMov || it.amount || 0))}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 truncate max-w-xs">{it.usuario || it.usuarioCad || '-'}</td>
+                      <td className="px-6 py-4 text-sm">{formatDate(it.dataRegistroMovimentacao)}</td>
+                      <td className="px-6 py-4 text-sm">{it.conta?.fkBanco?.nomeBanco || '-'}</td>
+                      <td className="px-6 py-4 text-sm">{getDescription(it)}</td>
+                      <td className="px-6 py-4 text-sm text-center">{it.formaPagamento}</td>
+                      <td className={`px-6 py-4 text-sm text-right font-medium ${it.tipoDuplicata === 0 ? 'text-red-600' : 'text-green-600'}`}>
+                        {formatCurrency(it.valor)}
+                      </td>
+                      <td className="px-6 py-4 text-sm">{it.usuario}</td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        {/* Paginação */}
+        <div className="flex items-center justify-between mt-4 px-6 py-4 bg-white rounded-lg">
+          <div className="text-sm text-secondary-600">
+            Página {movimentacaoData.number + 1} de {movimentacaoData.totalPages} • Total: {movimentacaoData.totalElements} registros
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handlePreviousPage}
+              disabled={currentMovPage === 0}
+              className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              ← Anterior
+            </button>
+
+            {Array.from({ length: movimentacaoData.totalPages }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => handleGoToPage(i)}
+                className={`px-3 py-1 rounded ${
+                  currentMovPage === i
+                    ? 'bg-blue-600 text-white'
+                    : 'border hover:bg-gray-100'
+                }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+
+            <button
+              onClick={handleNextPage}
+              disabled={currentMovPage >= movimentacaoData.totalPages - 1}
+              className="px-3 py-1 border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100"
+            >
+              Próximo →
+            </button>
           </div>
         </div>
       </div>
@@ -460,71 +543,6 @@ const Reports: React.FC = () => {
               );
             })()
           )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h3 className="text-lg font-semibold">Movimentações Bancárias</h3>
-            <p className="text-sm text-secondary-600">Resumo e histórico de transações</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <input
-              type="text"
-              placeholder="Buscar por descrição..."
-              value={txSearchTerm}
-              onChange={(e) => setTxSearchTerm(e.target.value)}
-              className="input-field"
-            />
-            <select value={txFilterBank} onChange={e => setTxFilterBank(e.target.value)} className="input-field">
-              <option value="">Todos os bancos</option>
-              {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-            <select value={txFilterType} onChange={e => setTxFilterType(e.target.value as any)} className="input-field">
-              <option value="all">Todos os tipos</option>
-              <option value="credit">Crédito</option>
-              <option value="debit">Débito</option>
-            </select>
-            <button onClick={buscarMovimentacoes} className='bg-blue-500 hover:pointer'>Buscar Dados</button>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-secondary-200">
-            <thead>
-              <tr className="table-header">
-                <th className="px-6 py-3 text-left">Data</th>
-                <th className="px-6 py-3 text-left">Banco</th>
-                <th className="px-6 py-3 text-left">Descrição</th>
-                <th className="px-6 py-3 text-center">Tipo</th>
-                <th className="px-6 py-3 text-right">Valor</th>
-                <th className="px-6 py-3 text-left">Usuário</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-secondary-200">
-              {filteredTransactions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="table-cell text-center text-secondary-500">Nenhuma transação encontrada</td>
-                </tr>
-              ) : (
-                filteredTransactions.map(tx => (
-                  <tr key={tx.id} className="hover:bg-secondary-50">
-                    <td className="table-cell">{formatDate(tx.date)}</td>
-                    <td className="table-cell">{(tx.bankId && banks.find(b => b.id === tx.bankId)?.name) || '-'}</td>
-                    <td className="table-cell">{tx.description}</td>
-                    <td className="table-cell text-center">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${tx.type === 'credit' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {tx.type === 'credit' ? 'Crédito' : 'Débito'}
-                      </span>
-                    </td>
-                    <td className={`table-cell text-right font-semibold ${tx.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>{tx.type === 'credit' ? '+' : '-'}{formatCurrency(tx.amount)}</td>
-                    <td className="table-cell">{currentUser?.name || 'Usuário'}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>
