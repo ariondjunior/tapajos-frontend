@@ -1,81 +1,122 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { AuthContextType, LoginCredentials, User, AuthResponse } from '../types';
-import { authService } from '../services/authService';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+
+type User = {
+  id?: string;
+  name?: string;
+  role?: string;
+  email?: string;
+  [key: string]: any;
+};
+
+type Credentials = { email: string; password: string };
+
+type AuthContextType = {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  login: (payload: string | Credentials) => Promise<void>;
+  logout: () => void;
+};
+
+const LOCAL_TOKEN_KEY = 'token';
+const LOCAL_USER_KEY = 'user';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
+    const token = localStorage.getItem(LOCAL_TOKEN_KEY);
+    const storedUser = localStorage.getItem(LOCAL_USER_KEY);
 
-    if (savedToken && savedUser) {
-      try {
-        setToken(savedToken);
-        setUser(JSON.parse(savedUser));
-      } catch (error) {
-        console.error('Erro ao recuperar dados do usuário:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
+    if (!token) {
+      setIsLoading(false);
+      return;
     }
+
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {
+        setUser({ name: storedUser });
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    if (token.startsWith('local:')) {
+      const email = (() => {
+        try {
+          return atob(token.split(':', 2)[1] || '');
+        } catch {
+          return '';
+        }
+      })();
+      const u = { name: email || 'user', email };
+      localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u));
+      setUser(u);
+    } else {
+      setUser({ name: token });
+    }
+
     setIsLoading(false);
   }, []);
 
-  const login = async (credentials: LoginCredentials): Promise<void> => {
-    try {
-      setIsLoading(true);
-      const response: AuthResponse = await authService.login(credentials);
-      
-      setUser(response.user);
-      setToken(response.token);
-      
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      
-    } catch (error) {
-      console.error('Erro no login:', error);
-      throw error;
-    } finally {
-      setIsLoading(false);
+  const login = async (payload: string | Credentials) => {
+    if (typeof payload === 'string') {
+      const token = payload;
+      localStorage.setItem(LOCAL_TOKEN_KEY, token);
+
+      if (token.startsWith('local:')) {
+        const email = (() => {
+          try {
+            return atob(token.split(':', 2)[1] || '');
+          } catch {
+            return '';
+          }
+        })();
+        const u = { name: email || 'user', email };
+        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u));
+        setUser(u);
+      } else {
+        const u = { name: token };
+        localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u));
+        setUser(u);
+      }
+      return;
     }
+
+    const email = payload.email || 'user';
+    const token = 'local:' + btoa(email);
+    const u = { name: email, email };
+    localStorage.setItem(LOCAL_TOKEN_KEY, token);
+    localStorage.setItem(LOCAL_USER_KEY, JSON.stringify(u));
+    setUser(u);
   };
 
   const logout = () => {
+    localStorage.removeItem(LOCAL_TOKEN_KEY);
+    localStorage.removeItem(LOCAL_USER_KEY);
     setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  };
-
-  const value: AuthContextType = {
-    user,
-    token,
-    login,
-    logout,
-    isLoading,
-    isAuthenticated: !!user && !!token,
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      isAuthenticated: !!user,
+      isLoading,
+      login,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-  }
-  return context;
-};
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  return ctx;
+}

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Sistema Financeiro Empresa Tapajos Ltda",
   "private": true,
+  "homepage": "https://ariondjunior.github.io/tapajos-frontend",
   "dependencies": {
     "@hookform/resolvers": "^3.3.0",
     "@types/node": "^20.0.0",
@@ -26,6 +27,7 @@
     "@types/react-chartjs-2": "^2.0.2",
     "@types/react-router-dom": "^5.3.0",
     "autoprefixer": "^10.4.0",
+    "gh-pages": "^6.3.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.3.0"
   },
@@ -33,7 +35,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "eslintConfig": {
     "extends": [

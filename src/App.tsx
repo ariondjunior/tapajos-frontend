@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { FinanceProvider } from './contexts/FinanceContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,6 +14,7 @@ import { useAuth } from './contexts/AuthContext';
 
 const AppContent: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
 
   return (
@@ -99,7 +100,7 @@ const AppContent: React.FC = () => {
                     <button
                       onClick={() => {
                         logout();
-                        window.location.href = '/login';
+                        navigate('/login');
                       }}
                       className="p-2 text-secondary-400 hover:text-red-600 transition-colors"
                       title="Sair"

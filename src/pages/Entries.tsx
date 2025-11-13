@@ -19,14 +19,14 @@ export default function Entries(){
     setIsSubmitting(true)
     try {
       addEntry({ 
-        user: user.name, 
+        user: user?.name ?? '',         
         entityId: entityId || undefined, 
         bankId: bankId || undefined, 
         type, 
         description: desc, 
         amount: Number(amount), 
         paid: false 
-      })
+      });
       setAmount('')
       setDesc('')
       setEntityId('')
@@ -327,7 +327,7 @@ export default function Entries(){
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             {!entry.paid && (
                               <button
-                                onClick={() => user && payEntry(entry.id, user.name)}
+                                onClick={() => user && payEntry(entry.id, user?.name ?? '')} // <-- user.name -> user?.name ?? ''
                                 className="bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-xs"
                               >
                                 Marcar Pago

@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/tapajos-frontend/static/css/main.14133670.css",
+    "main.js": "/tapajos-frontend/static/js/main.5e8c0ed0.js",
+    "index.html": "/tapajos-frontend/index.html",
+    "main.14133670.css.map": "/tapajos-frontend/static/css/main.14133670.css.map",
+    "main.5e8c0ed0.js.map": "/tapajos-frontend/static/js/main.5e8c0ed0.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.14133670.css",
+    "static/js/main.5e8c0ed0.js"
+  ]
+}
