@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/tapajos-financeiro/static/css/main.14133670.css",
-    "main.js": "/tapajos-financeiro/static/js/main.fc4f5095.js",
-    "index.html": "/tapajos-financeiro/index.html",
-    "main.14133670.css.map": "/tapajos-financeiro/static/css/main.14133670.css.map",
-    "main.fc4f5095.js.map": "/tapajos-financeiro/static/js/main.fc4f5095.js.map"
+    "main.css": "/tapajos-frontend/static/css/main.14133670.css",
+    "main.js": "/tapajos-frontend/static/js/main.09fd931b.js",
+    "index.html": "/tapajos-frontend/index.html",
+    "main.14133670.css.map": "/tapajos-frontend/static/css/main.14133670.css.map",
+    "main.09fd931b.js.map": "/tapajos-frontend/static/js/main.09fd931b.js.map"
   },
   "entrypoints": [
     "static/css/main.14133670.css",
-    "static/js/main.fc4f5095.js"
+    "static/js/main.09fd931b.js"
   ]
 }
